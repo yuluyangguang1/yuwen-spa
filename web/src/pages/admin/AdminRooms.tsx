@@ -12,10 +12,29 @@ export default function AdminRooms() {
     queryFn: () => get('/api/rooms'),
   })
 
-  // 生成二维码 URL（用免费 API）
+  // 生成二维码 URL：必须用局域网 IP，不能用 localhost
+  // 否则手机扫码打不开（localhost 指向手机自己）
+  const { data: system } = useQuery({
+    queryKey: ['system'],
+    queryFn: () => get('/api/system'),
+  })
+
+  const getLanHost = () => {
+    // 如果用户已经通过 IP 访问后台，直接用当前 host
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      return window.location.host
+    }
+    // 否则从后端获取局域网 IP
+    const ip = system?.lanIPs?.find((ip: string) => ip.startsWith('192.168') || ip.startsWith('10.'))
+      || system?.lanIPs?.[0]
+    if (ip) return `${ip}:${window.location.port || system?.port || 5173}`
+    return window.location.host
+  }
+
+  const getGuestUrl = (roomId: string) => `http://${getLanHost()}/guest/room/${roomId}`
+
   const getQRUrl = (roomId: string) => {
-    const base = window.location.origin
-    const url = `${base}/guest/room/${roomId}`
+    const url = getGuestUrl(roomId)
     return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}`
   }
 
@@ -42,7 +61,7 @@ export default function AdminRooms() {
               <img src={getQRUrl(showQR)} alt="QR Code" className="w-48 h-48 rounded-lg bg-white p-2" />
             </div>
             <div className="text-center text-[10px] text-white/30 break-all">
-              {window.location.origin}/guest/room/{showQR}
+              {getGuestUrl(showQR)}
             </div>
             <button
               onClick={() => window.print()}

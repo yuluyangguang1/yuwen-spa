@@ -3,6 +3,19 @@
 
 import os from 'node:os'
 
+function getLanIPs() {
+  const ifs = os.networkInterfaces()
+  const ips = []
+  for (const name of Object.keys(ifs)) {
+    for (const iface of ifs[name] || []) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        ips.push(iface.address)
+      }
+    }
+  }
+  return ips
+}
+
 export async function registerHealthRoutes(fastify) {
   fastify.get('/api/health', async () => ({
     ok: true,
@@ -23,5 +36,7 @@ export async function registerHealthRoutes(fastify) {
     },
     cpu: os.cpus().length,
     uptime: os.uptime(),
+    lanIPs: getLanIPs(),
+    port: fastify.server.address()?.port || PORT_START,
   }))
 }
