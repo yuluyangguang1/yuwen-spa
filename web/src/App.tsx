@@ -22,6 +22,7 @@ import AdminTechnicians from './pages/admin/AdminTechnicians'
 import AdminRooms from './pages/admin/AdminRooms'
 import AdminCustomers from './pages/admin/AdminCustomers'
 import AdminTickets from './pages/admin/AdminTickets'
+import AdminAI from './pages/admin/AdminAI'
 import AdminSettings from './pages/admin/AdminSettings'
 
 export default function App() {
@@ -54,6 +55,7 @@ export default function App() {
         <Route path="rooms" element={<AdminRooms />} />
         <Route path="customers" element={<AdminCustomers />} />
         <Route path="tickets" element={<AdminTickets />} />
+        <Route path="ai" element={<AdminAI />} />
         <Route path="settings" element={<AdminSettings />} />
       </Route>
     </Routes>

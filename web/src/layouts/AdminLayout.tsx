@@ -1,5 +1,5 @@
 import { Outlet, NavLink } from 'react-router-dom'
-import { LayoutDashboard, Scissors, Users, DoorOpen, UserCircle, Receipt, Settings } from 'lucide-react'
+import { LayoutDashboard, Scissors, Users, DoorOpen, UserCircle, Receipt, Bot, Settings } from 'lucide-react'
 
 const navItems = [
   { to: '/admin', label: '看板', icon: LayoutDashboard, end: true },
@@ -8,6 +8,7 @@ const navItems = [
   { to: '/admin/technicians', label: '技师', icon: Users },
   { to: '/admin/rooms', label: '房间', icon: DoorOpen },
   { to: '/admin/customers', label: '会员', icon: UserCircle },
+  { to: '/admin/ai', label: 'AI 助手', icon: Bot },
   { to: '/admin/settings', label: '设置', icon: Settings },
 ]
 
