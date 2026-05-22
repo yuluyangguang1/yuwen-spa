@@ -1,0 +1,23 @@
+node_modules/
+.DS_Store
+*.log
+dist/
+build/
+.env
+.env.local
+
+# 数据库文件不入仓
+server/db/*.db
+server/db/*.db-journal
+server/db/*.db-wal
+server/db/*.db-shm
+server/db/backups/
+
+# 前端构建产物
+server/public/
+web/dist/
+
+# IDE
+.vscode/
+.idea/
+*.swp

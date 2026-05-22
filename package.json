@@ -1,0 +1,12 @@
+{
+  "name": "yuwen-spa",
+  "version": "0.1.0",
+  "private": true,
+  "description": "足韵 - 线下足浴本地部署 SaaS",
+  "scripts": {
+    "dev:server": "cd server && npm run dev",
+    "dev:web": "cd web && npm run dev",
+    "build": "cd web && npm run build && node ../tools/copy-web.mjs",
+    "start": "cd server && npm start"
+  }
+}
