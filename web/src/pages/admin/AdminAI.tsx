@@ -1,11 +1,10 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { get, post } from '@/lib/api'
-import { Bot, Send, Zap, FileText, Star } from 'lucide-react'
+import { Bot, Send, Zap, FileText, Star, Wifi, WifiOff } from 'lucide-react'
 import { useState } from 'react'
 
-// 后台 AI 管理页：配置 + 对话 + 触发评分/日报
+// 后台 AI 管理页：Hermes 配置 + 对话 + 工具
 export default function AdminAI() {
-  const queryClient = useQueryClient()
   const [activeTab, setActiveTab] = useState<'config' | 'chat' | 'tools'>('config')
 
   return (
@@ -13,9 +12,9 @@ export default function AdminAI() {
       <h1 className="text-lg font-medium flex items-center gap-2">
         <Bot size={20} className="text-tan" />
         AI 助手
+        <span className="text-xs text-white/30 font-normal">powered by Hermes</span>
       </h1>
 
-      {/* Tab 切换 */}
       <div className="flex gap-1 glass-card p-1 w-fit">
         {[
           { id: 'config', label: '配置' },
@@ -34,15 +33,15 @@ export default function AdminAI() {
         ))}
       </div>
 
-      {activeTab === 'config' && <AIConfig />}
+      {activeTab === 'config' && <HermesConfig />}
       {activeTab === 'chat' && <AIChat />}
       {activeTab === 'tools' && <AITools />}
     </div>
   )
 }
 
-// ── 配置面板 ─────────────────────────────────────────────
-function AIConfig() {
+// ── Hermes 配置 ──────────────────────────────────────────
+function HermesConfig() {
   const queryClient = useQueryClient()
   const { data: config } = useQuery({
     queryKey: ['ai-config'],
@@ -61,65 +60,67 @@ function AIConfig() {
     mutationFn: () => post('/api/ai/test'),
   })
 
-  const providers = config?.providers || {}
+  const hermesOnline = config?.hermesStatus?.online
 
   return (
     <div className="space-y-4 max-w-lg">
-      <div className="glass-card p-5 space-y-4">
-        <h3 className="text-sm text-white/50">AI 模型配置</h3>
-
-        {/* Provider 选择 */}
-        <div>
-          <label className="text-xs text-white/40 block mb-1">服务商</label>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {Object.entries(providers).map(([key, info]: [string, any]) => (
-              <button
-                key={key}
-                onClick={() => setForm({ ...currentForm, provider: key, baseUrl: info.baseUrl, model: info.defaultModel })}
-                className={`glass-card p-2 text-xs text-center transition-all ${
-                  currentForm.provider === key ? 'border-tan/40 bg-tan/10 text-tan' : 'text-white/50'
-                }`}
-              >
-                {info.name}
-              </button>
-            ))}
-          </div>
+      {/* Hermes 状态 */}
+      <div className={`glass-card p-4 flex items-center gap-3 ${hermesOnline ? 'border-moss/20' : 'border-cinnabar/20'}`}>
+        {hermesOnline ? <Wifi size={18} className="text-moss" /> : <WifiOff size={18} className="text-cinnabar" />}
+        <div className="flex-1">
+          <div className="text-sm font-medium">{hermesOnline ? 'Hermes 在线' : 'Hermes 离线'}</div>
+          <div className="text-xs text-white/30">{config?.hermesStatus?.url || ''}</div>
         </div>
-
-        {/* API Key */}
-        {currentForm.provider && currentForm.provider !== 'ollama' && (
-          <div>
-            <label className="text-xs text-white/40 block mb-1">API Key</label>
-            <input
-              type="password"
-              value={currentForm.apiKey || ''}
-              onChange={e => setForm({ ...currentForm, apiKey: e.target.value })}
-              placeholder="sk-..."
-              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-tan/40 focus:outline-none"
-            />
-          </div>
+        {hermesOnline && (
+          <a href={`${config?.hermesUrl || 'http://127.0.0.1:18789'}`} target="_blank" rel="noreferrer"
+            className="text-xs text-tan hover:underline">
+            打开 Hermes
+          </a>
         )}
+      </div>
 
-        {/* 模型 */}
+      {!hermesOnline && (
+        <div className="glass-card p-4 text-xs text-white/50 space-y-2">
+          <p>Hermes 是 AI Gateway，负责管理模型和 API Key。</p>
+          <p>请先启动 Hermes（双击 Hermes 启动器），然后在 Hermes Config Center 里配置好模型。</p>
+          <p>足韵只需要连接 Hermes，不需要单独配置 API Key。</p>
+        </div>
+      )}
+
+      {/* 配置表单 */}
+      <div className="glass-card p-5 space-y-4">
+        <h3 className="text-sm text-white/50">连接配置</h3>
+
         <div>
-          <label className="text-xs text-white/40 block mb-1">模型</label>
+          <label className="text-xs text-white/40 block mb-1">Hermes 地址</label>
           <input
             type="text"
-            value={currentForm.model || ''}
-            onChange={e => setForm({ ...currentForm, model: e.target.value })}
-            placeholder="deepseek-chat"
+            value={currentForm.hermesUrl || ''}
+            onChange={e => setForm({ ...currentForm, hermesUrl: e.target.value })}
+            placeholder="http://127.0.0.1:18789"
+            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-tan/40 focus:outline-none"
+          />
+          <p className="text-[10px] text-white/20 mt-1">默认本机 18789 端口，和足韵跑在同一台主机上</p>
+        </div>
+
+        <div>
+          <label className="text-xs text-white/40 block mb-1">Hermes Token</label>
+          <input
+            type="password"
+            value={currentForm.hermesToken || ''}
+            onChange={e => setForm({ ...currentForm, hermesToken: e.target.value })}
+            placeholder="openclaw"
             className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-tan/40 focus:outline-none"
           />
         </div>
 
-        {/* 自定义 Base URL */}
         <div>
-          <label className="text-xs text-white/40 block mb-1">API 地址（可选，留空用默认）</label>
+          <label className="text-xs text-white/40 block mb-1">指定模型（可选，留空用 Hermes 默认）</label>
           <input
             type="text"
-            value={currentForm.baseUrl || ''}
-            onChange={e => setForm({ ...currentForm, baseUrl: e.target.value })}
-            placeholder="https://api.deepseek.com/v1"
+            value={currentForm.model || ''}
+            onChange={e => setForm({ ...currentForm, model: e.target.value })}
+            placeholder="留空 = Hermes 默认模型"
             className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-tan/40 focus:outline-none"
           />
         </div>
@@ -129,20 +130,19 @@ function AIConfig() {
           <span className="text-sm text-white/60">启用 AI</span>
           <button
             onClick={() => setForm({ ...currentForm, enabled: !currentForm.enabled })}
-            className={`w-10 h-5 rounded-full transition-colors ${currentForm.enabled ? 'bg-tan' : 'bg-white/10'}`}
+            className={`w-10 h-5 rounded-full transition-colors relative ${currentForm.enabled ? 'bg-tan' : 'bg-white/10'}`}
           >
-            <div className={`w-4 h-4 rounded-full bg-white transition-transform ${currentForm.enabled ? 'translate-x-5' : 'translate-x-0.5'}`} />
+            <div className={`w-4 h-4 rounded-full bg-white absolute top-0.5 transition-all ${currentForm.enabled ? 'left-5' : 'left-0.5'}`} />
           </button>
         </div>
 
-        {/* 操作按钮 */}
         <div className="flex gap-2 pt-2">
           <button
             onClick={() => saveMutation.mutate(currentForm)}
             disabled={saveMutation.isPending}
             className="flex-1 bg-tan text-white py-2 rounded-lg text-sm active:scale-[0.97] disabled:opacity-50"
           >
-            {saveMutation.isPending ? '保存中...' : '保存配置'}
+            {saveMutation.isPending ? '保存中...' : '保存'}
           </button>
           <button
             onClick={() => testMutation.mutate()}
@@ -153,15 +153,12 @@ function AIConfig() {
           </button>
         </div>
 
-        {/* 测试结果 */}
         {testMutation.data && (
-          <div className={`text-xs p-2 rounded ${testMutation.data.ok ? 'bg-moss/10 text-moss' : 'bg-cinnabar/10 text-cinnabar'}`}>
-            {testMutation.data.ok ? `连接成功: ${testMutation.data.response}` : `失败: ${testMutation.data.error}`}
+          <div className={`text-xs p-2 rounded ${(testMutation.data as any).ok ? 'bg-moss/10 text-moss' : 'bg-cinnabar/10 text-cinnabar'}`}>
+            {(testMutation.data as any).ok ? `连接成功: ${(testMutation.data as any).response}` : `失败: ${(testMutation.data as any).error}`}
           </div>
         )}
-        {saveMutation.isSuccess && (
-          <div className="text-xs text-moss">配置已保存</div>
-        )}
+        {saveMutation.isSuccess && <div className="text-xs text-moss">已保存</div>}
       </div>
     </div>
   )
@@ -174,7 +171,7 @@ function AIChat() {
 
   const chatMutation = useMutation({
     mutationFn: (message: string) => post('/api/ai/chat', { message }),
-    onSuccess: (data) => {
+    onSuccess: (data: any) => {
       setMessages(prev => [...prev, { role: 'assistant', content: data.response }])
     },
     onError: (err: any) => {
@@ -191,20 +188,18 @@ function AIChat() {
 
   return (
     <div className="glass-card flex flex-col h-[500px]">
-      {/* 消息列表 */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {messages.length === 0 && (
           <div className="text-center text-white/20 text-sm py-8">
             <Bot size={32} className="mx-auto mb-2 text-white/10" />
-            试试问我：今天营收多少？哪个技师表现最好？
+            <p>通过 Hermes 连接大模型</p>
+            <p className="mt-2 text-white/15">试试问：今天营收多少？哪个技师表现最好？</p>
           </div>
         )}
         {messages.map((msg, i) => (
           <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[80%] px-3 py-2 rounded-xl text-sm ${
-              msg.role === 'user'
-                ? 'bg-tan/20 text-white/90'
-                : 'bg-white/5 text-white/70'
+            <div className={`max-w-[80%] px-3 py-2 rounded-xl text-sm whitespace-pre-wrap ${
+              msg.role === 'user' ? 'bg-tan/20 text-white/90' : 'bg-white/5 text-white/70'
             }`}>
               {msg.content}
             </div>
@@ -217,7 +212,6 @@ function AIChat() {
         )}
       </div>
 
-      {/* 输入框 */}
       <div className="p-3 border-t border-white/5 flex gap-2">
         <input
           type="text"
@@ -250,13 +244,12 @@ function AITools() {
 
   return (
     <div className="space-y-3 max-w-lg">
-      {/* 月度评分 */}
       <div className="glass-card p-4 flex items-center justify-between">
         <div>
           <div className="text-sm font-medium flex items-center gap-2">
             <Star size={14} className="text-tan" /> AI 技师月度评分
           </div>
-          <div className="text-xs text-white/30 mt-0.5">分析本月所有评价，生成多维度评分</div>
+          <div className="text-xs text-white/30 mt-0.5">通过 Hermes 调用大模型分析评价文本</div>
         </div>
         <button
           onClick={() => scoreMutation.mutate()}
@@ -268,16 +261,15 @@ function AITools() {
       </div>
       {scoreMutation.data && (
         <div className="glass-card p-3 text-xs space-y-1">
-          {scoreMutation.data.results?.map((r: any) => (
+          {(scoreMutation.data as any).results?.map((r: any) => (
             <div key={r.id || r.name} className="flex justify-between">
               <span>{r.name}</span>
-              <span className="text-tan">{r.score ? `${r.score}分` : r.msg || r.error}</span>
+              <span className="text-tan">{r.score ? `${r.score}分 — ${r.summary || ''}` : r.msg || r.error}</span>
             </div>
           ))}
         </div>
       )}
 
-      {/* 经营日报 */}
       <div className="glass-card p-4 flex items-center justify-between">
         <div>
           <div className="text-sm font-medium flex items-center gap-2">
@@ -295,9 +287,14 @@ function AITools() {
       </div>
       {reportMutation.data && (
         <div className="glass-card p-3 text-sm text-white/70 whitespace-pre-wrap">
-          {reportMutation.data.report || reportMutation.data.error}
+          {(reportMutation.data as any).report || (reportMutation.data as any).error}
         </div>
       )}
+
+      <div className="glass-card p-4 text-xs text-white/30 space-y-1">
+        <p>所有 AI 调用通过 Hermes Gateway 转发，模型和 Key 在 Hermes Config Center 管理。</p>
+        <p>足韵系统不存储任何 API Key（除了 Hermes 连接 token）。</p>
+      </div>
     </div>
   )
 }

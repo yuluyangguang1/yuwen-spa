@@ -1,99 +1,73 @@
-// AI Provider 统一接口
+// AI Provider — 通过 Hermes Gateway 调用
 //
-// 支持多个 LLM 后端，后台配置切换：
-//   - deepseek（推荐，便宜好用）
-//   - qwen（通义千问）
-//   - openai（GPT-4o / GPT-4o-mini）
-//   - ollama（本地模型，完全离线）
-//   - custom（自定义 OpenAI 兼容接口）
+// 足韵不再直接对接各家 LLM API，而是统一走本地 Hermes：
+//   http://127.0.0.1:18789/v1/chat/completions
 //
-// 所有 provider 统一走 OpenAI 兼容格式（/v1/chat/completions）
+// 好处：
+//   - 多模型管理在 Hermes Config Center 里搞定
+//   - Token 用量、计费、限流 Hermes 自带
+//   - 足韵只需要知道 Hermes 地址 + token，不关心底层是哪个模型
+//   - 老板可以随时在 Hermes 里切模型，足韵代码不用改
+//   - 对话记忆、上下文管理可以交给 Hermes 的 session 能力
+//
+// 配置项只有两个：
+//   - hermesUrl: Hermes Gateway 地址（默认 http://127.0.0.1:18789）
+//   - hermesToken: Hermes 认证 token（默认 openclaw）
 
 import fs from 'node:fs'
 import path from 'node:path'
 
 const CONFIG_PATH = path.join(process.cwd(), 'db', 'ai-config.json')
 
-const PROVIDERS = {
-  deepseek: {
-    name: 'DeepSeek',
-    baseUrl: 'https://api.deepseek.com/v1',
-    defaultModel: 'deepseek-chat',
-  },
-  qwen: {
-    name: '通义千问',
-    baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-    defaultModel: 'qwen-plus',
-  },
-  openai: {
-    name: 'OpenAI',
-    baseUrl: 'https://api.openai.com/v1',
-    defaultModel: 'gpt-4o-mini',
-  },
-  ollama: {
-    name: 'Ollama (本地)',
-    baseUrl: 'http://127.0.0.1:11434/v1',
-    defaultModel: 'qwen2.5:7b',
-  },
-  custom: {
-    name: '自定义',
-    baseUrl: '',
-    defaultModel: '',
-  },
+// 默认配置
+const DEFAULTS = {
+  hermesUrl: 'http://127.0.0.1:18789',
+  hermesToken: 'openclaw',
+  model: '',  // 留空 = 用 Hermes 默认模型
+  enabled: false,
 }
 
-// 读取 AI 配置
+// 读取配置
 export function getAIConfig() {
   try {
     if (fs.existsSync(CONFIG_PATH)) {
-      return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'))
+      const saved = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'))
+      return { ...DEFAULTS, ...saved }
     }
   } catch (e) { /* fallback */ }
-  return { provider: '', apiKey: '', model: '', baseUrl: '', enabled: false }
+  return { ...DEFAULTS }
 }
 
-// 保存 AI 配置
+// 保存配置
 export function saveAIConfig(config) {
   const dir = path.dirname(CONFIG_PATH)
   fs.mkdirSync(dir, { recursive: true })
   fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2))
 }
 
-// 获取 provider 信息
-export function getProviders() {
-  return PROVIDERS
-}
-
-// 统一调用 LLM
+// 调用 Hermes（OpenAI 兼容格式）
 export async function chatCompletion(messages, opts = {}) {
   const config = getAIConfig()
-  if (!config.enabled || !config.provider) {
-    throw new Error('AI 未配置，请在后台设置 API Key')
+  if (!config.enabled) {
+    throw new Error('AI 未启用，请在后台设置中开启并确保 Hermes 在运行')
   }
 
-  const providerInfo = PROVIDERS[config.provider] || {}
-  const baseUrl = config.baseUrl || providerInfo.baseUrl
-  const model = config.model || providerInfo.defaultModel
-  const apiKey = config.apiKey
-
-  if (!baseUrl) throw new Error('未配置 API 地址')
-  if (!apiKey && config.provider !== 'ollama') throw new Error('未配置 API Key')
-
-  const url = `${baseUrl.replace(/\/+$/, '')}/chat/completions`
+  const url = `${config.hermesUrl.replace(/\/+$/, '')}/v1/chat/completions`
   const headers = {
     'Content-Type': 'application/json',
+    'Authorization': `Bearer ${config.hermesToken}`,
   }
-  if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`
 
   const body = {
-    model,
     messages,
     temperature: opts.temperature ?? 0.7,
     max_tokens: opts.max_tokens ?? 2000,
   }
+  // 如果指定了模型就传，否则让 Hermes 用默认
+  if (config.model) body.model = config.model
 
   const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), opts.timeout || 30000)
+  const timeout = setTimeout(() => controller.abort(), opts.timeout || 60000)
 
   try {
     const res = await fetch(url, {
@@ -105,7 +79,7 @@ export async function chatCompletion(messages, opts = {}) {
 
     if (!res.ok) {
       const errBody = await res.text().catch(() => '')
-      throw new Error(`AI API 错误 (${res.status}): ${errBody.slice(0, 200)}`)
+      throw new Error(`Hermes 返回错误 (${res.status}): ${errBody.slice(0, 300)}`)
     }
 
     const data = await res.json()
@@ -115,10 +89,23 @@ export async function chatCompletion(messages, opts = {}) {
   }
 }
 
-// 便捷方法：单轮对话
+// 便捷方法
 export async function ask(prompt, systemPrompt) {
   const messages = []
   if (systemPrompt) messages.push({ role: 'system', content: systemPrompt })
   messages.push({ role: 'user', content: prompt })
   return chatCompletion(messages)
+}
+
+// 检查 Hermes 是否在线
+export async function checkHermesStatus() {
+  const config = getAIConfig()
+  try {
+    const res = await fetch(`${config.hermesUrl}/`, {
+      signal: AbortSignal.timeout(3000),
+    })
+    return { online: res.ok, url: config.hermesUrl }
+  } catch (e) {
+    return { online: false, url: config.hermesUrl, error: e.message }
+  }
 }

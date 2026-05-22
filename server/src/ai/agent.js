@@ -125,5 +125,5 @@ export async function aiChat(userMessage, context) {
 // 检查 AI 是否可用
 export function isAIEnabled() {
   const config = getAIConfig()
-  return config.enabled && !!config.provider
+  return config.enabled
 }

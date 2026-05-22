@@ -7,7 +7,7 @@
 
 import { nanoid } from 'nanoid'
 import {
-  getAIConfig, saveAIConfig, getProviders, chatCompletion, ask
+  getAIConfig, saveAIConfig, chatCompletion, ask, checkHermesStatus
 } from '../ai/provider.js'
 import {
   aiScoreTechnician, aiBusinessReport, aiChat, isAIEnabled
@@ -18,38 +18,39 @@ export async function registerAIRoutes(fastify) {
 
   // ── 配置管理 ─────────────────────────────────────────
 
-  // 获取当前 AI 配置（隐藏 key 中间部分）
+  // 获取当前 AI 配置 + Hermes 状态
   fastify.get('/api/ai/config', async () => {
     const config = getAIConfig()
+    const status = await checkHermesStatus()
     return {
       ...config,
-      apiKey: config.apiKey ? maskKey(config.apiKey) : '',
-      providers: getProviders(),
+      hermesToken: config.hermesToken ? '***' : '',
+      hermesStatus: status,
     }
   })
 
   // 保存 AI 配置
   fastify.post('/api/ai/config', async (req, reply) => {
-    const { provider, apiKey, model, baseUrl, enabled } = req.body || {}
-    if (!provider) return reply.code(400).send({ error: 'provider required' })
-
+    const { hermesUrl, hermesToken, model, enabled } = req.body || {}
     const current = getAIConfig()
     const newConfig = {
-      provider,
-      // 如果前端传的是 mask 过的 key（没改），保留原值
-      apiKey: apiKey && !apiKey.includes('***') ? apiKey : current.apiKey,
-      model: model || '',
-      baseUrl: baseUrl || '',
-      enabled: enabled !== false,
+      hermesUrl: hermesUrl || current.hermesUrl,
+      hermesToken: (hermesToken && hermesToken !== '***') ? hermesToken : current.hermesToken,
+      model: model !== undefined ? model : current.model,
+      enabled: enabled !== undefined ? enabled : current.enabled,
     }
     saveAIConfig(newConfig)
-    return { ok: true, config: { ...newConfig, apiKey: maskKey(newConfig.apiKey) } }
+    return { ok: true }
   })
 
-  // 测试 AI 连接
+  // 测试 AI 连接（通过 Hermes）
   fastify.post('/api/ai/test', async (req, reply) => {
     try {
-      const result = await ask('请回复"连接成功"四个字。', '你是一个测试助手。')
+      const status = await checkHermesStatus()
+      if (!status.online) {
+        return reply.code(500).send({ ok: false, error: `Hermes 不在线 (${status.url})，请先启动 Hermes` })
+      }
+      const result = await ask('请回复"连接成功"四个字。', '你是一个测试助手，只回复用户要求的内容。')
       return { ok: true, response: result }
     } catch (e) {
       return reply.code(500).send({ ok: false, error: e.message })
@@ -197,9 +198,4 @@ function startOfDay(ts) {
   const d = new Date(ts)
   d.setHours(0, 0, 0, 0)
   return d.getTime()
-}
-
-function maskKey(key) {
-  if (!key || key.length < 8) return key ? '***' : ''
-  return key.slice(0, 4) + '***' + key.slice(-4)
 }
