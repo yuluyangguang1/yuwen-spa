@@ -1,12 +1,23 @@
 import { useQuery } from '@tanstack/react-query'
 import { get } from '@/lib/api'
 import { statusLabel } from '@/lib/utils'
+import { QrCode } from 'lucide-react'
+import { useState } from 'react'
 
 export default function AdminRooms() {
+  const [showQR, setShowQR] = useState<string | null>(null)
+
   const { data: rooms = [] } = useQuery({
     queryKey: ['rooms'],
     queryFn: () => get('/api/rooms'),
   })
+
+  // 生成二维码 URL（用免费 API）
+  const getQRUrl = (roomId: string) => {
+    const base = window.location.origin
+    const url = `${base}/guest/room/${roomId}`
+    return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}`
+  }
 
   return (
     <div className="p-4 md:p-6 space-y-4">
@@ -16,6 +27,33 @@ export default function AdminRooms() {
           新增房间
         </button>
       </div>
+
+      {/* 二维码弹窗 */}
+      {showQR && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm" onClick={() => setShowQR(null)}>
+          <div className="bg-[#1a1a18] rounded-2xl p-6 max-w-sm w-full mx-4 space-y-4" onClick={e => e.stopPropagation()}>
+            <div className="text-center">
+              <h3 className="font-medium text-lg">房间二维码</h3>
+              <p className="text-xs text-white/40 mt-1">
+                {rooms.find((r: any) => r.id === showQR)?.number}号房 · 顾客扫码选技师
+              </p>
+            </div>
+            <div className="flex justify-center">
+              <img src={getQRUrl(showQR)} alt="QR Code" className="w-48 h-48 rounded-lg bg-white p-2" />
+            </div>
+            <div className="text-center text-[10px] text-white/30 break-all">
+              {window.location.origin}/guest/room/{showQR}
+            </div>
+            <button
+              onClick={() => window.print()}
+              className="w-full bg-tan text-white py-2.5 rounded-lg text-sm"
+            >
+              打印二维码
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
         {rooms.map((r: any) => (
           <div key={r.id} className={`glass-card p-4 ${r.status === 'occupied' ? 'border-tan/20' : ''}`}>
@@ -28,6 +66,13 @@ export default function AdminRooms() {
                 {statusLabel(r.status)}
               </span>
             </div>
+            <button
+              onClick={() => setShowQR(r.id)}
+              className="w-full mt-3 flex items-center justify-center gap-1 text-xs text-white/30 hover:text-tan py-1.5 rounded border border-white/5 hover:border-tan/20"
+            >
+              <QrCode size={12} />
+              二维码
+            </button>
           </div>
         ))}
       </div>

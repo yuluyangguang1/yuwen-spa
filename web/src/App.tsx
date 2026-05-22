@@ -44,7 +44,7 @@ export default function App() {
       </Route>
 
       {/* 顾客端 */}
-      <Route path="/guest/:ticketId" element={<GuestView />} />
+      <Route path="/guest/room/:roomId" element={<GuestView />} />
 
       {/* 总后台 */}
       <Route path="/admin" element={<AdminLayout />}>

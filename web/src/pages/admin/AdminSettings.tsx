@@ -58,7 +58,7 @@ export default function AdminSettings() {
         <div className="grid gap-2 text-sm">
           <Entry label="收银端" path="/pos" desc="前台开钟、结账" />
           <Entry label="技师端" path="/tech" desc="技师查看排钟、提成" />
-          <Entry label="顾客端" path="/guest/[ticketId]" desc="扫码查看服务进度、加钟" />
+          <Entry label="顾客端" path="/guest/room/[roomId]" desc="扫房间二维码，选技师下单" />
           <Entry label="管理后台" path="/admin" desc="全部管理功能" />
         </div>
       </section>
