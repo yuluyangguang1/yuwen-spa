@@ -122,8 +122,4 @@ export async function aiChat(userMessage, context) {
   ])
 }
 
-// 检查 AI 是否可用
-export function isAIEnabled() {
-  const config = getAIConfig()
-  return config.enabled
-}
+// 检查 AI 是否可用（从 provider.js 导出）
