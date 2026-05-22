@@ -10,6 +10,7 @@ import { registerTechnicianRoutes } from './technicians.js'
 import { registerRoomRoutes } from './rooms.js'
 import { registerCustomerRoutes } from './customers.js'
 import { registerTicketRoutes } from './tickets.js'
+import { registerReviewRoutes } from './reviews.js'
 
 export async function registerRoutes(fastify) {
   await registerHealthRoutes(fastify)
@@ -19,4 +20,5 @@ export async function registerRoutes(fastify) {
   await registerRoomRoutes(fastify)
   await registerCustomerRoutes(fastify)
   await registerTicketRoutes(fastify)
+  await registerReviewRoutes(fastify)
 }

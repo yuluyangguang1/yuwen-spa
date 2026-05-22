@@ -80,7 +80,15 @@ CREATE TABLE IF NOT EXISTS technicians (
   name        TEXT NOT NULL,
   level       TEXT,                -- 初级/中级/高级/技师长
   phone       TEXT,
+  avatar      TEXT,                -- 头像 URL（可选）
+  bio         TEXT,                -- 个人简介
+  specialties TEXT,                -- 擅长项目（JSON array）
+  years       INTEGER,             -- 从业年限
   status      TEXT NOT NULL DEFAULT 'idle', -- idle/working/break/off
+  ai_score    REAL NOT NULL DEFAULT 0,     -- AI 综合评分（0-5，每月更新）
+  ai_scored_at INTEGER,            -- 上次 AI 评分时间
+  review_count INTEGER NOT NULL DEFAULT 0, -- 累计评价数
+  avg_rating  REAL NOT NULL DEFAULT 0,     -- 平均评分（1-5）
   hired_at    INTEGER,
   active      INTEGER NOT NULL DEFAULT 1,
   created_at  INTEGER NOT NULL,
@@ -179,6 +187,36 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 );
 
 CREATE INDEX IF NOT EXISTS idx_audit_shop_created ON audit_logs(shop_id, created_at);
+
+-- ─── 服务评价 ─────────────────────────────────────
+CREATE TABLE IF NOT EXISTS reviews (
+  id              TEXT PRIMARY KEY,
+  shop_id         TEXT NOT NULL REFERENCES shops(id),
+  ticket_id       TEXT REFERENCES tickets(id),
+  technician_id   TEXT NOT NULL REFERENCES technicians(id),
+  customer_id     TEXT REFERENCES customers(id),
+  rating          INTEGER NOT NULL,    -- 1-5 星
+  tags            TEXT,                -- JSON array: ["手法好","态度佳","力度适中"]
+  comment         TEXT,                -- 文字评价
+  anonymous       INTEGER NOT NULL DEFAULT 0,
+  created_at      INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_reviews_tech ON reviews(technician_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_reviews_shop ON reviews(shop_id, created_at);
+
+-- ─── AI 月度评分记录 ──────────────────────────────
+CREATE TABLE IF NOT EXISTS ai_scores (
+  id              TEXT PRIMARY KEY,
+  technician_id   TEXT NOT NULL REFERENCES technicians(id),
+  month           TEXT NOT NULL,        -- "2026-05"
+  score           REAL NOT NULL,        -- 0-5
+  dimensions      TEXT,                 -- JSON: {service:4.2, attitude:4.5, skill:4.0, punctuality:4.8}
+  summary         TEXT,                 -- AI 生成的一句话总结
+  review_count    INTEGER NOT NULL DEFAULT 0,
+  created_at      INTEGER NOT NULL,
+  UNIQUE(technician_id, month)
+);
 `
 
 // ── 迁移系统 ──────────────────────────────────────
@@ -243,16 +281,16 @@ function seedIfEmpty(db) {
 
     // 技师示例（老板自己加）
     const insertTech = db.prepare(`
-      INSERT INTO technicians(id, shop_id, number, name, level, hired_at, created_at, updated_at)
-      VALUES(?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO technicians(id, shop_id, number, name, level, bio, specialties, years, ai_score, avg_rating, review_count, hired_at, created_at, updated_at)
+      VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
     const techs = [
-      ['01', '示范师傅', '高级'],
-      ['02', '小王',     '中级'],
-      ['03', '小李',     '初级'],
+      ['01', '张师傅', '高级', '从业8年，擅长足底穴位按摩，手法细腻有力。', '["足浴","足浴+按摩","深度足疗"]', 8, 4.8, 4.7, 23],
+      ['02', '小王',   '中级', '年轻有活力，力度适中，善于沟通。', '["全身推拿","肩颈舒压"]', 3, 4.3, 4.2, 15],
+      ['03', '小李',   '初级', '新人技师，认真负责，正在快速成长中。', '["足浴","采耳"]', 1, 3.9, 3.8, 8],
     ]
     techs.forEach(t => {
-      insertTech.run(nanoid(10), shopId, t[0], t[1], t[2], now, now, now)
+      insertTech.run(nanoid(10), shopId, t[0], t[1], t[2], t[3], t[4], t[5], t[6], t[7], t[8], now, now, now)
     })
 
     db.prepare(`INSERT INTO meta(key, value) VALUES('seeded_at', ?)`).run(String(now))

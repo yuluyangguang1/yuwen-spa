@@ -2,8 +2,9 @@ import { useParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { get, post } from '@/lib/api'
 import { formatMoney, formatElapsed } from '@/lib/utils'
-import { Clock, User, Check, Plus } from 'lucide-react'
+import { Clock, User, Check, Plus, Star } from 'lucide-react'
 import { useState } from 'react'
+import TechProfile from '@/components/TechProfile'
 
 // 顾客端：扫房间二维码进入
 // URL: /guest/room/:roomId
@@ -56,6 +57,7 @@ function GuestSelectView({ room }: { room: any }) {
   const [selectedTech, setSelectedTech] = useState<any>(null)
   const [selectedService, setSelectedService] = useState<any>(null)
   const [success, setSuccess] = useState(false)
+  const [previewTechId, setPreviewTechId] = useState<string | null>(null)
 
   const { data: technicians = [] } = useQuery({
     queryKey: ['technicians'],
@@ -72,8 +74,10 @@ function GuestSelectView({ room }: { room: any }) {
     queryFn: () => get('/api/shops/current'),
   })
 
-  const idleTechs = technicians.filter((t: any) => t.status === 'idle')
-  const busyTechs = technicians.filter((t: any) => t.status === 'working')
+  // 按 AI 评分排序（高分靠前）
+  const sortedTechs = [...technicians].sort((a: any, b: any) => (b.ai_score || 0) - (a.ai_score || 0))
+  const idleTechs = sortedTechs.filter((t: any) => t.status === 'idle')
+  const busyTechs = sortedTechs.filter((t: any) => t.status === 'working')
 
   const createTicket = useMutation({
     mutationFn: () => post('/api/tickets', {
@@ -123,19 +127,27 @@ function GuestSelectView({ room }: { room: any }) {
           {/* 空闲技师 */}
           {idleTechs.length > 0 && (
             <div className="space-y-2">
-              <div className="text-xs text-white/30 px-1">可选技师</div>
+              <div className="text-xs text-white/30 px-1">可选技师（按评分排序）</div>
               <div className="grid grid-cols-2 gap-3">
                 {idleTechs.map((tech: any) => (
                   <button
                     key={tech.id}
-                    onClick={() => { setSelectedTech(tech); setStep('service') }}
+                    onClick={() => setPreviewTechId(tech.id)}
                     className="glass-card p-4 text-center active:scale-[0.97] hover:border-tan/30 transition-all"
                   >
                     <div className="w-14 h-14 mx-auto rounded-full bg-gradient-to-br from-tan/20 to-tan/5 flex items-center justify-center mb-2">
                       <span className="text-xl font-bold text-tan">{tech.number}</span>
                     </div>
                     <div className="font-medium">{tech.name}</div>
-                    <div className="text-[10px] text-white/40 mt-0.5">{tech.level || '技师'}</div>
+                    <div className="text-[10px] text-white/40 mt-0.5">{tech.level || '技师'}{tech.years ? ` · ${tech.years}年` : ''}</div>
+                    {/* 评分 */}
+                    <div className="flex items-center justify-center gap-1 mt-1.5">
+                      <Star size={10} className="text-tan fill-tan" />
+                      <span className="text-xs text-tan">{tech.ai_score || tech.avg_rating || '-'}</span>
+                      {tech.review_count > 0 && (
+                        <span className="text-[10px] text-white/30">({tech.review_count}评)</span>
+                      )}
+                    </div>
                     <div className="mt-2 text-[10px] px-2 py-0.5 rounded-full bg-moss/15 text-moss inline-block">
                       空闲
                     </div>
@@ -143,6 +155,20 @@ function GuestSelectView({ room }: { room: any }) {
                 ))}
               </div>
             </div>
+          )}
+
+          {/* 技师详情预览弹窗 */}
+          {previewTechId && (
+            <TechProfile
+              techId={previewTechId}
+              onClose={() => setPreviewTechId(null)}
+              onSelect={() => {
+                const tech = technicians.find((t: any) => t.id === previewTechId)
+                setSelectedTech(tech)
+                setPreviewTechId(null)
+                setStep('service')
+              }}
+            />
           )}
 
           {/* 忙碌技师（灰显） */}
