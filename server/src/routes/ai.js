@@ -55,12 +55,36 @@ export async function registerAIRoutes(fastify) {
 
   // ── AI 对话（老板助手）────────────────────────────────
 
+  // 获取对话历史（最近 N 条）
+  fastify.get('/api/ai/chats', async (req) => {
+    const limit = Math.min(Number(req.query?.limit) || 50, 200)
+    const rows = db.prepare(`
+      SELECT role, content, created_at FROM ai_chats
+      WHERE shop_id = ?
+      ORDER BY created_at DESC
+      LIMIT ?
+    `).all(req.user.shop_id, limit)
+    return { messages: rows.reverse() }
+  })
+
+  // 清空对话历史
+  fastify.delete('/api/ai/chats', async (req) => {
+    db.prepare(`DELETE FROM ai_chats WHERE shop_id = ?`).run(req.user.shop_id)
+    return { ok: true }
+  })
+
   fastify.post('/api/ai/chat', async (req, reply) => {
     if (!isAIEnabled()) {
       return reply.code(400).send({ error: 'AI 未启用，请先在后台 AI 设置中开启' })
     }
     const { message } = req.body || {}
     if (!message) return reply.code(400).send({ error: 'message required' })
+
+    const now = Date.now()
+
+    // 保存用户消息
+    db.prepare(`INSERT INTO ai_chats(id, shop_id, role, content, created_at) VALUES(?,?,?,?,?)`)
+      .run(nanoid(10), req.user.shop_id, 'user', message, now)
 
     // 构建上下文：当日经营数据
     const today = startOfDay(Date.now())
@@ -80,6 +104,11 @@ export async function registerAIRoutes(fastify) {
 
     try {
       const response = await aiChat(message, context)
+
+      // 保存 AI 回复
+      db.prepare(`INSERT INTO ai_chats(id, shop_id, role, content, created_at) VALUES(?,?,?,?,?)`)
+        .run(nanoid(10), req.user.shop_id, 'assistant', response, Date.now())
+
       return { ok: true, response }
     } catch (e) {
       return reply.code(500).send({ ok: false, error: e.message })

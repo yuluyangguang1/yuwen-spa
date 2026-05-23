@@ -16,6 +16,15 @@ const navItems = [
   { to: '/admin/settings', label: '设置', icon: Settings },
 ]
 
+// 移动端底部导航（5 个核心 tab）
+const mobileNavItems = [
+  navItems[0], // 看板
+  navItems[1], // 钟单
+  navItems[2], // 项目
+  navItems[6], // AI 助手
+  navItems[8], // 设置
+]
+
 export default function AdminLayout() {
   const { user, logout } = useAuth()
   const [showPwd, setShowPwd] = useState(false)
@@ -68,7 +77,7 @@ export default function AdminLayout() {
 
       {/* 移动端底部导航 */}
       <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex justify-around border-t border-white/5 bg-[#0a0a09]/95 backdrop-blur-xl py-1.5 safe-area-pb">
-        {navItems.slice(0, 5).map(item => (
+        {mobileNavItems.map(item => (
           <NavLink
             key={item.to}
             to={item.to}

@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { get, post } from '@/lib/api'
-import { Bot, Send, FileText, Star, Wifi, WifiOff } from 'lucide-react'
-import { useState } from 'react'
+import { get, post, del } from '@/lib/api'
+import { Bot, Send, FileText, Star, Wifi, WifiOff, Trash2 } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
 
 export default function AdminAI() {
   const [activeTab, setActiveTab] = useState<'config' | 'chat' | 'tools'>('config')
@@ -135,6 +135,24 @@ function AIConfig() {
 function AIChat() {
   const [messages, setMessages] = useState<Array<{ role: string; content: string }>>([])
   const [input, setInput] = useState('')
+  const bottomRef = useRef<HTMLDivElement>(null)
+
+  // 加载历史记录
+  const { data: history } = useQuery({
+    queryKey: ['ai-chats'],
+    queryFn: () => get<{ messages: Array<{ role: string; content: string }> }>('/api/ai/chats'),
+  })
+
+  useEffect(() => {
+    if (history?.messages?.length) {
+      setMessages(history.messages)
+    }
+  }, [history])
+
+  // 自动滚到底部
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+  }, [messages])
 
   const chatMutation = useMutation({
     mutationFn: (message: string) => post('/api/ai/chat', { message }),
@@ -146,6 +164,11 @@ function AIChat() {
     },
   })
 
+  const clearMutation = useMutation({
+    mutationFn: () => del('/api/ai/chats'),
+    onSuccess: () => setMessages([]),
+  })
+
   const handleSend = () => {
     if (!input.trim()) return
     setMessages(prev => [...prev, { role: 'user', content: input }])
@@ -155,6 +178,19 @@ function AIChat() {
 
   return (
     <div className="glass-card flex flex-col h-[500px]">
+      {/* 顶栏：清空按钮 */}
+      <div className="flex items-center justify-between px-4 py-2 border-b border-white/5">
+        <span className="text-xs text-white/30">{messages.length} 条对话</span>
+        {messages.length > 0 && (
+          <button
+            onClick={() => { if (confirm('清空所有对话记录？')) clearMutation.mutate() }}
+            className="flex items-center gap-1 text-xs text-white/30 hover:text-red-400 transition-colors"
+          >
+            <Trash2 size={12} /> 清空
+          </button>
+        )}
+      </div>
+
       <div className="flex-1 overflow-y-auto p-4 space-y-3">
         {messages.length === 0 && (
           <div className="text-center text-white/20 text-sm py-8">
@@ -176,6 +212,7 @@ function AIChat() {
             <div className="bg-white/5 px-3 py-2 rounded-xl text-sm text-white/40">思考中...</div>
           </div>
         )}
+        <div ref={bottomRef} />
       </div>
       <div className="p-3 border-t border-white/5 flex gap-2">
         <input

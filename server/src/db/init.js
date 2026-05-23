@@ -233,6 +233,15 @@ CREATE TABLE IF NOT EXISTS users (
   created_at    INTEGER NOT NULL,
   updated_at    INTEGER NOT NULL
 );
+
+-- ─── AI 对话记录 ──────────────────────────────────
+CREATE TABLE IF NOT EXISTS ai_chats (
+  id          TEXT PRIMARY KEY,
+  shop_id     TEXT NOT NULL REFERENCES shops(id),
+  role        TEXT NOT NULL,         -- user / assistant
+  content     TEXT NOT NULL,
+  created_at  INTEGER NOT NULL
+);
 `
 
 // ── 迁移系统 ──────────────────────────────────────
@@ -252,6 +261,17 @@ const MIGRATIONS = [
         last_login_at INTEGER,
         created_at    INTEGER NOT NULL,
         updated_at    INTEGER NOT NULL
+      )
+    `)
+  }},
+  { version: 2, up: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS ai_chats (
+        id          TEXT PRIMARY KEY,
+        shop_id     TEXT NOT NULL REFERENCES shops(id),
+        role        TEXT NOT NULL,
+        content     TEXT NOT NULL,
+        created_at  INTEGER NOT NULL
       )
     `)
   }},
