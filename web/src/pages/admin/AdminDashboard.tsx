@@ -1,98 +1,71 @@
-import { useQuery } from '@tanstack/react-query'
-import { get } from '@/lib/api'
-import { formatMoney } from '@/lib/utils'
-import { Activity, Users, DollarSign, TrendingUp, Clock, CreditCard } from 'lucide-react'
+// 客服实时看板
+//
+// 全场一目了然：技师状态、房间状态、当前钟单、今日统计
+// 实时刷新（WebSocket + 10s 轮询兜底）
 
-// 总后台看板：老板一眼看清今天的经营状况
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { get } from '@/lib/api'
+import { useRealtime } from '@/lib/realtime'
+import { formatMoney, formatElapsed, statusLabel } from '@/lib/utils'
+
 export default function AdminDashboard() {
-  const { data: tickets = [] } = useQuery({
-    queryKey: ['tickets-today'],
-    queryFn: () => get('/api/tickets/today'),
+  const qc = useQueryClient()
+
+  // WebSocket 实时刷新
+  useRealtime({
+    'ticket:created': () => qc.invalidateQueries({ queryKey: ['live'] }),
+    'ticket:updated': () => qc.invalidateQueries({ queryKey: ['live'] }),
+    'ticket:paid': () => qc.invalidateQueries({ queryKey: ['live'] }),
+    'technician:updated': () => qc.invalidateQueries({ queryKey: ['live'] }),
+  })
+
+  const { data } = useQuery({
+    queryKey: ['live'],
+    queryFn: () => get('/api/dashboard/live'),
     refetchInterval: 10000,
   })
-  const { data: technicians = [] } = useQuery({
-    queryKey: ['technicians'],
-    queryFn: () => get('/api/technicians'),
-  })
 
-  const active = tickets.filter((t: any) => t.status === 'active')
-  const paid = tickets.filter((t: any) => t.status === 'paid')
-  const revenue = paid.reduce((s: number, t: any) => s + t.price_cents, 0)
-  const commission = paid.reduce((s: number, t: any) => s + (t.commission_cents || 0), 0)
-  const avgTicket = paid.length > 0 ? Math.round(revenue / paid.length) : 0
-  const busyTechs = technicians.filter((t: any) => t.status === 'working')
+  const techs = data?.techs || []
+  const rooms = data?.rooms || []
+  const stats = data?.stats || { total: 0, active: 0, paid: 0, pending: 0, revenue: 0 }
+
+  const idleTechs = techs.filter((t: any) => t.status === 'idle')
+  const workingTechs = techs.filter((t: any) => t.status === 'working')
+  const idleRooms = rooms.filter((r: any) => r.status === 'idle')
+  const occupiedRooms = rooms.filter((r: any) => r.status === 'occupied')
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
-      <h1 className="text-lg font-medium">今日经营</h1>
-
-      {/* Bento Grid 统计 */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <Stat icon={DollarSign} label="营收" value={formatMoney(revenue)} color="text-tan" />
-        <Stat icon={TrendingUp} label="净利润" value={formatMoney(revenue - commission)} sub="扣除提成" color="text-moss" />
-        <Stat icon={CreditCard} label="客单价" value={formatMoney(avgTicket)} color="text-tan-light" />
-        <Stat icon={Activity} label="进行中" value={`${active.length}`} sub="钟" color="text-tan" />
-        <Stat icon={Clock} label="已完成" value={`${paid.length}`} sub="单" color="text-white/60" />
-        <Stat icon={Users} label="在岗" value={`${busyTechs.length}/${technicians.length}`} color="text-moss" />
+    <div className="p-4 md:p-6 space-y-5">
+      {/* 今日概览 */}
+      <div className="grid grid-cols-4 gap-2">
+        <StatCard label="进行中" value={stats.active} color="text-tan" />
+        <StatCard label="已结账" value={stats.paid} color="text-moss" />
+        <StatCard label="等待中" value={stats.pending} color="text-white/60" />
+        <StatCard label="营收" value={formatMoney(stats.revenue)} color="text-tan" />
       </div>
 
-      {/* 技师业绩排行 */}
+      {/* 技师状态 */}
       <section>
-        <h2 className="text-sm text-white/50 mb-3">技师业绩排行</h2>
-        <div className="glass-card overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-white/5 text-white/40 text-xs">
-                <th className="text-left p-3">技师</th>
-                <th className="text-right p-3">钟数</th>
-                <th className="text-right p-3">营收</th>
-                <th className="text-right p-3">提成</th>
-              </tr>
-            </thead>
-            <tbody>
-              {technicians.map((tech: any) => {
-                const techTickets = paid.filter((t: any) => t.technician_id === tech.id)
-                const techRevenue = techTickets.reduce((s: number, t: any) => s + t.price_cents, 0)
-                const techComm = techTickets.reduce((s: number, t: any) => s + (t.commission_cents || 0), 0)
-                return (
-                  <tr key={tech.id} className="border-b border-white/5 last:border-0">
-                    <td className="p-3">
-                      <span className="text-white/40 mr-2">{tech.number}</span>
-                      {tech.name}
-                    </td>
-                    <td className="p-3 text-right">{techTickets.length}</td>
-                    <td className="p-3 text-right text-tan">{formatMoney(techRevenue)}</td>
-                    <td className="p-3 text-right text-moss">{formatMoney(techComm)}</td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+        <h2 className="text-sm text-white/50 mb-3 flex items-center gap-2">
+          技师状态
+          <span className="text-[10px] text-white/25">空闲 {idleTechs.length} · 服务中 {workingTechs.length}</span>
+        </h2>
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+          {techs.map((t: any) => (
+            <TechCard key={t.id} tech={t} />
+          ))}
         </div>
       </section>
 
-      {/* 最近钟单 */}
+      {/* 房间状态 */}
       <section>
-        <h2 className="text-sm text-white/50 mb-3">最近钟单</h2>
-        <div className="space-y-2">
-          {tickets.slice(0, 10).map((t: any) => (
-            <div key={t.id} className="glass-card p-3 flex items-center justify-between">
-              <div>
-                <div className="text-sm">{t.service_name}</div>
-                <div className="text-[10px] text-white/30">
-                  {t.technician_name && `${t.technician_number}号${t.technician_name}`}
-                  {t.room_number && ` · ${t.room_number}号房`}
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-sm text-tan">{formatMoney(t.price_cents)}</div>
-                <div className={`text-[10px] ${
-                  t.status === 'active' ? 'text-tan' : t.status === 'paid' ? 'text-moss' : 'text-white/30'
-                }`}>
-                  {t.status === 'active' ? '进行中' : t.status === 'paid' ? '已结' : t.status === 'completed' ? '待结' : t.status}
-                </div>
-              </div>
-            </div>
+        <h2 className="text-sm text-white/50 mb-3 flex items-center gap-2">
+          房间状态
+          <span className="text-[10px] text-white/25">空闲 {idleRooms.length} · 使用中 {occupiedRooms.length}</span>
+        </h2>
+        <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-2">
+          {rooms.map((r: any) => (
+            <RoomCard key={r.id} room={r} />
           ))}
         </div>
       </section>
@@ -100,15 +73,87 @@ export default function AdminDashboard() {
   )
 }
 
-function Stat({ icon: Icon, label, value, sub, color }: any) {
+function StatCard({ label, value, color }: { label: string; value: any; color: string }) {
   return (
-    <div className="glass-card p-3">
-      <div className="flex items-center gap-1.5 mb-1">
-        <Icon size={14} className={color} />
-        <span className="text-[10px] text-white/40">{label}</span>
+    <div className="glass-card p-3 text-center">
+      <div className="text-xs text-white/40">{label}</div>
+      <div className={`text-xl font-medium mt-1 ${color}`}>{value}</div>
+    </div>
+  )
+}
+
+function TechCard({ tech }: { tech: any }) {
+  const isWorking = tech.status === 'working'
+  const isIdle = tech.status === 'idle'
+
+  return (
+    <div className={`glass-card p-3 ${isWorking ? 'border-tan/30 bg-tan/5' : ''}`}>
+      <div className="flex items-center gap-2 mb-2">
+        <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+          isWorking ? 'bg-tan/20 text-tan' : 'bg-white/5 text-white/40'
+        }`}>
+          {tech.number}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-sm font-medium truncate">{tech.name}</div>
+          <div className="text-[10px] text-white/30">{tech.level}</div>
+        </div>
+        <span className={`text-[10px] px-1.5 py-0.5 rounded ${
+          isWorking ? 'bg-tan/15 text-tan' :
+          isIdle ? 'bg-moss/15 text-moss' :
+          'bg-white/5 text-white/30'
+        }`}>
+          {statusLabel(tech.status)}
+        </span>
       </div>
-      <div className={`text-lg font-medium ${color}`}>{value}</div>
-      {sub && <div className="text-[10px] text-white/20">{sub}</div>}
+
+      {isWorking && tech.ticket_id && (
+        <div className="text-xs text-white/50 space-y-0.5">
+          <div className="flex justify-between">
+            <span>{tech.service_name}</span>
+            <span className="text-tan">{formatElapsed(tech.started_at)}</span>
+          </div>
+          <div className="text-[10px] text-white/30">
+            {tech.room_number && `${tech.room_number}号${tech.room_type || ''}`}
+            {tech.customer_name && ` · ${tech.customer_name}`}
+          </div>
+          {/* 进度条 */}
+          <div className="h-1 bg-white/5 rounded-full overflow-hidden mt-1">
+            <div
+              className="h-full bg-tan/50 rounded-full transition-all"
+              style={{
+                width: `${Math.min(100, ((Date.now() - tech.started_at) / (tech.service_duration * 60000)) * 100)}%`
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {isIdle && (
+        <div className="text-[10px] text-moss/60 mt-1">等待派钟</div>
+      )}
+    </div>
+  )
+}
+
+function RoomCard({ room }: { room: any }) {
+  const isOccupied = room.status === 'occupied'
+
+  return (
+    <div className={`glass-card p-2.5 text-center ${isOccupied ? 'border-tan/30 bg-tan/5' : ''}`}>
+      <div className={`text-lg font-bold ${isOccupied ? 'text-tan' : 'text-white/30'}`}>
+        {room.number}
+      </div>
+      <div className="text-[10px] text-white/30">{room.type}</div>
+
+      {isOccupied ? (
+        <div className="mt-1 space-y-0.5">
+          <div className="text-[10px] text-tan truncate">{room.tech_name}</div>
+          <div className="text-[10px] text-white/30 truncate">{room.service_name}</div>
+        </div>
+      ) : (
+        <div className="mt-1 text-[10px] text-moss/50">空闲</div>
+      )}
     </div>
   )
 }

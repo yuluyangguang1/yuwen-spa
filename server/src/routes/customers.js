@@ -1,6 +1,7 @@
 // 顾客（会员）+ 钱包流水
 
 import { nanoid } from 'nanoid'
+import { notifyMembershipTopup } from '../notify/index.js'
 
 export async function registerCustomerRoutes(fastify) {
   // 列表 + 搜索（手机号/名字/会员号）
@@ -88,6 +89,8 @@ export async function registerCustomerRoutes(fastify) {
     })()
 
     fastify.broadcast({ type: 'customer:topup', data: { customer_id: customer.id, balance_cents: newBalance } })
+    // 会员充值通知推大群
+    notifyMembershipTopup({ ...customer, balance_cents: newBalance }, amount_cents, 'topup').catch(() => {})
     return { ok: true, balance_cents: newBalance, transaction_id: txId }
   })
 

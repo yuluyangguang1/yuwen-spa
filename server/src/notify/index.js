@@ -1,14 +1,14 @@
 // 通知模块：企业微信 Webhook 推送
 //
+// 通知规则：
+//   排钟 → 大群 + 技师私信
+//   结算 → 仅技师私信
+//   会员办卡/充值 → 大群
+//   客服办大卡 → 大群
+//
 // 企业微信群机器人 webhook 格式：
 //   POST https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=xxx
-//   Body: { "msgtype": "text", "text": { "content": "消息内容" } }
-//
-// 支持 markdown 格式更美观。
-//
-// 配置存储在 db/notify-config.json：
-//   webhookUrl: string  （群机器人 webhook 地址）
-//   enabled: boolean
+//   Body: { "msgtype": "markdown", "markdown": { "content": "..." } }
 
 import fs from 'node:fs'
 import path from 'node:path'
@@ -37,7 +37,7 @@ export function saveNotifyConfig(config) {
 }
 
 // ── 发送企业微信 webhook ──────────────────────────
-async function sendWebhookTo(url, content, msgtype = 'text') {
+async function sendWebhookTo(url, content, msgtype = 'markdown') {
   const body = msgtype === 'markdown'
     ? { msgtype: 'markdown', markdown: { content } }
     : { msgtype: 'text', text: { content } }
@@ -57,13 +57,20 @@ async function sendWebhookTo(url, content, msgtype = 'text') {
   }
 }
 
-async function sendWebhook(content, msgtype = 'text') {
+// 发送到大群
+async function sendToGroup(content) {
   const config = getNotifyConfig()
   if (!config.enabled || !config.webhookUrl) return false
-  return sendWebhookTo(config.webhookUrl, content, msgtype)
+  return sendWebhookTo(config.webhookUrl, content)
 }
 
-// ── 业务通知：新派钟 ──────────────────────────────
+// 发送到技师私信
+async function sendToTech(techWebhookUrl, content) {
+  if (!techWebhookUrl) return false
+  return sendWebhookTo(techWebhookUrl, content)
+}
+
+// ── 新派钟：大群 + 技师私信 ──────────────────────
 export async function notifyTicketCreated(ticket, techWebhookUrl) {
   const tech = ticket.technician_name || ticket.technician_number || '未指派'
   const service = ticket.service_name || '服务'
@@ -79,15 +86,14 @@ export async function notifyTicketCreated(ticket, techWebhookUrl) {
     `> 时间：${time}`,
   ].filter(Boolean).join('\n')
 
-  // 同时发群消息和个人消息
-  const tasks = [sendWebhook(content, 'markdown')]
-  if (techWebhookUrl) {
-    tasks.push(sendWebhookTo(techWebhookUrl, content, 'markdown'))
-  }
-  return Promise.all(tasks)
+  // 群 + 私信
+  return Promise.all([
+    sendToGroup(content),
+    sendToTech(techWebhookUrl, content),
+  ])
 }
 
-// ── 业务通知：结账 ────────────────────────────────
+// ── 结算：仅技师私信 ──────────────────────────────
 export async function notifyTicketPaid(ticket, techWebhookUrl) {
   const tech = ticket.technician_name || ''
   const service = ticket.service_name || '服务'
@@ -95,7 +101,7 @@ export async function notifyTicketPaid(ticket, techWebhookUrl) {
   const commission = (ticket.commission_cents / 100).toFixed(0)
 
   const content = [
-    `💰 <font color="info">结账通知</font>`,
+    `💰 <font color="info">结算通知</font>`,
     ``,
     `> 技师：${tech}`,
     `> 项目：${service}`,
@@ -103,14 +109,49 @@ export async function notifyTicketPaid(ticket, techWebhookUrl) {
     `> 提成：<font color="warning">¥${commission}</font>`,
   ].join('\n')
 
-  const tasks = [sendWebhook(content, 'markdown')]
-  if (techWebhookUrl) {
-    tasks.push(sendWebhookTo(techWebhookUrl, content, 'markdown'))
-  }
-  return Promise.all(tasks)
+  // 仅私信
+  return sendToTech(techWebhookUrl, content)
+}
+
+// ── 会员办卡/充值：大群 ──────────────────────────
+export async function notifyMembershipTopup(customer, amount_cents, type) {
+  const name = customer.name || '顾客'
+  const phone = customer.phone ? `${customer.phone.slice(-4)}` : ''
+  const amount = (amount_cents / 100).toFixed(0)
+  const balance = (customer.balance_cents / 100).toFixed(0)
+  const label = type === 'topup' ? '充值' : '办卡'
+
+  const content = [
+    `🎉 <font color="info">会员${label}</font>`,
+    ``,
+    `> 会员：${name}${phone ? `（尾号${phone}）` : ''}`,
+    `> 金额：¥${amount}`,
+    `> 余额：¥${balance}`,
+  ].join('\n')
+
+  return sendToGroup(content)
+}
+
+// ── 大额消费提醒：大群 ──────────────────────────
+export async function notifyBigTicket(ticket, threshold_cents = 20000) {
+  if (ticket.price_cents < threshold_cents) return false
+
+  const tech = ticket.technician_name || ''
+  const service = ticket.service_name || '服务'
+  const price = (ticket.price_cents / 100).toFixed(0)
+
+  const content = [
+    `🔥 <font color="warning">大额订单</font>`,
+    ``,
+    `> 技师：${tech}`,
+    `> 项目：${service}`,
+    `> 金额：<font color="warning">¥${price}</font>`,
+  ].join('\n')
+
+  return sendToGroup(content)
 }
 
 // ── 测试连接 ──────────────────────────────────────
 export async function testWebhook() {
-  return sendWebhook('✅ 足韵 webhook 连接测试成功\n\n当前时间：' + new Date().toLocaleString('zh-CN'), 'text')
+  return sendToGroup('✅ 足韵 webhook 连接测试成功\n\n当前时间：' + new Date().toLocaleString('zh-CN'))
 }
