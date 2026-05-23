@@ -32,6 +32,9 @@
         Node.js + Fastify + SQLite
         监听 0.0.0.0:8080
               │
+              ├── Hermes Gateway (127.0.0.1:8642)
+              │    └── AI 对话 / 技师评分 / 经营日报
+              │
        局域网 WiFi（同 WiFi 即可访问）
               │
    ┌──────────┼──────────┬───────────┐
@@ -90,5 +93,25 @@ cd web && npm run dev
 # 一键打包：前端构建产物拷贝到 server/public，统一由后端托管
 npm run build
 
+# 首次部署：安装并配置 Hermes Agent（只需一次）
+bash installers/setup-hermes.sh
+
 # 启动（双击 installers/ 里的对应脚本）
 ```
+
+## 首次部署流程
+
+1. 在客户主机上解压足韵包
+2. 运行 `bash installers/setup-hermes.sh`（macOS/Linux）或双击 `setup-hermes.bat`（Windows）
+   - 自动安装 Hermes Agent（如果尚未安装）
+   - 引导填写 AI API Key（推荐 DeepSeek，便宜好用）
+   - 启动 Hermes Gateway（端口 8642）
+   - 配置足韵 AI 连接地址
+3. 运行 `start.command`（macOS）/ `start.bat`（Windows）/ `start.sh`（Linux）
+   - 检查并启动 Hermes Gateway
+   - 启动足韵后端（端口 8080）
+   - 自动打开浏览器
+4. 店内设备同 WiFi 访问主机 IP + 端口号
+
+> **AI 模型管理**：打开 Hermes Web UI (http://localhost:8642) 可切换模型、查看用量统计。
+> 足韵只管调用，不关心底层是哪个模型。

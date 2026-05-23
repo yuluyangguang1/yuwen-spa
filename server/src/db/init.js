@@ -13,6 +13,7 @@ import Database from 'better-sqlite3'
 import path from 'node:path'
 import fs from 'node:fs'
 import { nanoid } from 'nanoid'
+import { hashPassword } from '../auth/utils.js'
 
 export function initDatabase(dbDir) {
   fs.mkdirSync(dbDir, { recursive: true })
@@ -217,12 +218,43 @@ CREATE TABLE IF NOT EXISTS ai_scores (
   created_at      INTEGER NOT NULL,
   UNIQUE(technician_id, month)
 );
+
+-- ─── 用户（登录账号）─────────────────────────────
+CREATE TABLE IF NOT EXISTS users (
+  id            TEXT PRIMARY KEY,
+  shop_id       TEXT NOT NULL REFERENCES shops(id),
+  username      TEXT NOT NULL UNIQUE,
+  password_hash TEXT NOT NULL,
+  role          TEXT NOT NULL DEFAULT 'pos',  -- admin / pos / tech
+  display_name  TEXT,
+  technician_id TEXT REFERENCES technicians(id),  -- role=tech 时关联技师
+  active        INTEGER NOT NULL DEFAULT 1,
+  last_login_at INTEGER,
+  created_at    INTEGER NOT NULL,
+  updated_at    INTEGER NOT NULL
+);
 `
 
 // ── 迁移系统 ──────────────────────────────────────
 // 每次 schema 演进新增一个迁移，不要修改老的。
 const MIGRATIONS = [
-  // { version: 1, up: (db) => { db.exec('ALTER TABLE ...') } },
+  { version: 1, up: (db) => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS users (
+        id            TEXT PRIMARY KEY,
+        shop_id       TEXT NOT NULL REFERENCES shops(id),
+        username      TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        role          TEXT NOT NULL DEFAULT 'pos',
+        display_name  TEXT,
+        technician_id TEXT REFERENCES technicians(id),
+        active        INTEGER NOT NULL DEFAULT 1,
+        last_login_at INTEGER,
+        created_at    INTEGER NOT NULL,
+        updated_at    INTEGER NOT NULL
+      )
+    `)
+  }},
 ]
 
 function runMigrations(db) {
@@ -293,8 +325,16 @@ function seedIfEmpty(db) {
       insertTech.run(nanoid(10), shopId, t[0], t[1], t[2], t[3], t[4], t[5], t[6], t[7], t[8], now, now, now)
     })
 
+    // 默认账号（老板登录后应改密码）
+    const insertUser = db.prepare(`
+      INSERT INTO users(id, shop_id, username, password_hash, role, display_name, created_at, updated_at)
+      VALUES(?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    insertUser.run(nanoid(10), shopId, 'admin', hashPassword('admin'), 'admin', '管理员', now, now)
+    insertUser.run(nanoid(10), shopId, 'pos',    hashPassword('pos'),    'pos',    '收银台', now, now)
+
     db.prepare(`INSERT INTO meta(key, value) VALUES('seeded_at', ?)`).run(String(now))
   })()
 
-  console.log('[db] 已 seed 默认数据（1 店、6 项目、10 房间、3 技师示范）')
+  console.log('[db] 已 seed 默认数据（1 店、6 项目、10 房间、3 技师、2 账号）')
 }

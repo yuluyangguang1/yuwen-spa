@@ -1,15 +1,27 @@
 import { Outlet, NavLink } from 'react-router-dom'
-import { LayoutGrid, PlusCircle, Banknote } from 'lucide-react'
+import { LayoutGrid, PlusCircle, Banknote, LogOut } from 'lucide-react'
+import { useAuth } from '../lib/auth'
 
 // 收银端布局：底部大按钮导航，适合触屏操作
 export default function PosLayout() {
+  const { user, logout } = useAuth()
+
   return (
     <div className="flex flex-col h-screen">
       {/* 顶栏 */}
       <header className="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-[#0e0e0d]/80 backdrop-blur-xl">
         <h1 className="font-display text-xl text-tan">足韵 · 收银</h1>
-        <div className="text-xs text-white/30">
-          <Clock />
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-white/30">
+            <Clock />
+          </span>
+          <button
+            onClick={logout}
+            className="flex items-center gap-1 text-xs text-white/30 hover:text-red-400 transition-colors"
+          >
+            <LogOut size={14} />
+            <span className="hidden sm:inline">{user?.display_name}</span>
+          </button>
         </div>
       </header>
 
@@ -46,7 +58,6 @@ function PosNavBtn({ to, icon: Icon, label, end }: any) {
 }
 
 function Clock() {
-  // 简单时钟显示
   const now = new Date()
   return <span>{now.getHours().toString().padStart(2,'0')}:{now.getMinutes().toString().padStart(2,'0')}</span>
 }

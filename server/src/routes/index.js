@@ -3,6 +3,8 @@
 // 按业务拆分文件，每个文件导出一个注册函数。
 // 现阶段只起核心几个，后续每加一个业务模块就新增一个文件 + 在这里挂上。
 
+import { registerAuthHook } from '../auth/hook.js'
+import { registerAuthRoutes } from './auth.js'
 import { registerHealthRoutes } from './health.js'
 import { registerShopRoutes } from './shops.js'
 import { registerServiceRoutes } from './services.js'
@@ -14,6 +16,11 @@ import { registerReviewRoutes } from './reviews.js'
 import { registerAIRoutes } from './ai.js'
 
 export async function registerRoutes(fastify) {
+  // 1. 先注册 auth hook（拦截未登录请求）
+  await registerAuthHook(fastify)
+
+  // 2. 注册路由
+  await registerAuthRoutes(fastify)
   await registerHealthRoutes(fastify)
   await registerShopRoutes(fastify)
   await registerServiceRoutes(fastify)

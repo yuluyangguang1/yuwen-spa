@@ -1,5 +1,6 @@
 import { Outlet, NavLink } from 'react-router-dom'
-import { LayoutDashboard, Scissors, Users, DoorOpen, UserCircle, Receipt, Bot, Settings } from 'lucide-react'
+import { LayoutDashboard, Scissors, Users, DoorOpen, UserCircle, Receipt, Bot, Settings, LogOut } from 'lucide-react'
+import { useAuth } from '../lib/auth'
 
 const navItems = [
   { to: '/admin', label: '看板', icon: LayoutDashboard, end: true },
@@ -13,6 +14,8 @@ const navItems = [
 ]
 
 export default function AdminLayout() {
+  const { user, logout } = useAuth()
+
   return (
     <div className="flex h-screen">
       {/* 侧边栏 */}
@@ -38,10 +41,17 @@ export default function AdminLayout() {
             </NavLink>
           ))}
         </nav>
-        {/* 快捷入口 */}
+        {/* 快捷入口 + 用户信息 */}
         <div className="p-3 border-t border-white/5 space-y-1 text-xs">
           <a href="/pos" className="block px-3 py-1.5 text-white/30 hover:text-white/60 rounded">→ 收银端</a>
           <a href="/tech" className="block px-3 py-1.5 text-white/30 hover:text-white/60 rounded">→ 技师端</a>
+          <button
+            onClick={logout}
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-white/30 hover:text-red-400 rounded transition-colors"
+          >
+            <LogOut size={12} />
+            {user?.display_name || user?.username} · 退出
+          </button>
         </div>
       </aside>
 
@@ -62,7 +72,18 @@ export default function AdminLayout() {
         ))}
       </nav>
 
-      <main className="flex-1 overflow-y-auto pb-16 md:pb-0">
+      {/* 移动端顶栏：用户名 + 退出 */}
+      <div className="md:hidden fixed top-0 right-0 z-50 p-3">
+        <button
+          onClick={logout}
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 text-white/40 text-[10px] hover:text-red-400 transition-colors"
+        >
+          <LogOut size={12} />
+          退出
+        </button>
+      </div>
+
+      <main className="flex-1 overflow-y-auto pb-16 md:pb-0 pt-12 md:pt-0">
         <Outlet />
       </main>
     </div>

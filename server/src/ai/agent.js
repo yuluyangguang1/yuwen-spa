@@ -11,8 +11,6 @@
 import { chatCompletion, getAIConfig } from './provider.js'
 
 const SYSTEM_PROMPT = `你是"足韵"足浴门店管理系统的内置 AI 助手。你的角色是帮助门店老板和管理者做经营决策。
-
-你了解足浴行业的特点：
 - 技师是核心资产，服务质量直接影响回头率
 - 排钟效率影响翻台率和营收
 - 会员储值是现金流的关键
@@ -121,5 +119,3 @@ export async function aiChat(userMessage, context) {
     { role: 'user', content: userMessage },
   ])
 }
-
-// 检查 AI 是否可用（从 provider.js 导出）

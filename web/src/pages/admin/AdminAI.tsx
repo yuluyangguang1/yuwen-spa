@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { get, post } from '@/lib/api'
-import { Bot, Send, FileText, Star } from 'lucide-react'
+import { Bot, Send, FileText, Star, Wifi, WifiOff } from 'lucide-react'
 import { useState } from 'react'
 
 export default function AdminAI() {
@@ -44,7 +44,7 @@ function AIConfig() {
 
   const [form, setForm] = useState<any>(null)
   const currentForm = form || config || {}
-  const providers = config?.providers || {}
+  const status = config?.hermesStatus
 
   const saveMutation = useMutation({
     mutationFn: (data: any) => post('/api/ai/config', data),
@@ -55,64 +55,48 @@ function AIConfig() {
   return (
     <div className="space-y-4 max-w-lg">
       <div className="glass-card p-5 space-y-4">
-        <h3 className="text-sm text-white/50">AI 模型配置</h3>
+        <h3 className="text-sm text-white/50">Hermes Gateway 配置</h3>
 
-        {/* 服务商 */}
-        <div>
-          <label className="text-xs text-white/40 block mb-1.5">服务商</label>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {Object.entries(providers).map(([key, info]: [string, any]) => (
-              <button
-                key={key}
-                onClick={() => setForm({ ...currentForm, provider: key, baseUrl: info.baseUrl, model: info.defaultModel })}
-                className={`glass-card p-2.5 text-xs text-center transition-all ${
-                  currentForm.provider === key ? 'border-tan/40 bg-tan/10 text-tan' : 'text-white/50'
-                }`}
-              >
-                {info.name}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* API Key */}
-        {currentForm.provider && currentForm.provider !== 'ollama' && (
-          <div>
-            <label className="text-xs text-white/40 block mb-1">API Key</label>
-            <input
-              type="password"
-              value={currentForm.apiKey || ''}
-              onChange={e => setForm({ ...currentForm, apiKey: e.target.value })}
-              placeholder="sk-..."
-              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-tan/40 focus:outline-none"
-            />
+        {/* 在线状态指示灯 */}
+        {status && (
+          <div className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-lg ${
+            status.online ? 'bg-moss/10 text-moss' : 'bg-cinnabar/10 text-cinnabar'
+          }`}>
+            {status.online ? <Wifi size={14} /> : <WifiOff size={14} />}
+            <span>
+              {status.online
+                ? `Hermes Gateway 在线 — ${status.url}`
+                : `Hermes Gateway 离线 — ${status.url}`
+              }
+            </span>
           </div>
         )}
 
-        {/* 模型 */}
+        {/* Hermes 地址 */}
         <div>
-          <label className="text-xs text-white/40 block mb-1">模型</label>
+          <label className="text-xs text-white/40 block mb-1">Hermes Gateway 地址</label>
+          <input
+            type="text"
+            value={currentForm.hermesUrl || ''}
+            onChange={e => setForm({ ...currentForm, hermesUrl: e.target.value })}
+            placeholder="http://127.0.0.1:8642"
+            className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm font-mono focus:border-tan/40 focus:outline-none"
+          />
+          <div className="text-[10px] text-white/25 mt-1">默认 http://127.0.0.1:8642</div>
+        </div>
+
+        {/* 模型 */}
+
+        <div>
+          <label className="text-xs text-white/40 block mb-1">模型（留空 = Hermes 默认）</label>
           <input
             type="text"
             value={currentForm.model || ''}
             onChange={e => setForm({ ...currentForm, model: e.target.value })}
+            placeholder="deepseek/deepseek-v4-flash"
             className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-tan/40 focus:outline-none"
           />
         </div>
-
-        {/* 自定义地址 */}
-        {currentForm.provider === 'custom' && (
-          <div>
-            <label className="text-xs text-white/40 block mb-1">API 地址</label>
-            <input
-              type="text"
-              value={currentForm.baseUrl || ''}
-              onChange={e => setForm({ ...currentForm, baseUrl: e.target.value })}
-              placeholder="https://your-api.com/v1"
-              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm focus:border-tan/40 focus:outline-none"
-            />
-          </div>
-        )}
 
         {/* 启用 */}
         <div className="flex items-center justify-between">

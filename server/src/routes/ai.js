@@ -7,7 +7,7 @@
 
 import { nanoid } from 'nanoid'
 import {
-  getAIConfig, saveAIConfig, getProviders, chatCompletion, ask, isAIEnabled
+  getAIConfig, saveAIConfig, chatCompletion, ask, isAIEnabled, checkHermesStatus
 } from '../ai/provider.js'
 import {
   aiScoreTechnician, aiBusinessReport, aiChat
@@ -17,34 +17,36 @@ export async function registerAIRoutes(fastify) {
   const db = fastify.db
 
   // ── 配置管理 ─────────────────────────────────────────
-
+  // 获取当前 AI 配置 + Hermes 状态
   fastify.get('/api/ai/config', async () => {
     const config = getAIConfig()
+    const status = await checkHermesStatus()
     return {
       ...config,
-      apiKey: config.apiKey ? maskKey(config.apiKey) : '',
-      providers: getProviders(),
+      hermesStatus: status,
     }
   })
 
   fastify.post('/api/ai/config', async (req, reply) => {
-    const { provider, apiKey, model, baseUrl, enabled } = req.body || {}
-    if (!provider) return reply.code(400).send({ error: 'provider required' })
+    const { hermesUrl, model, enabled } = req.body || {}
     const current = getAIConfig()
     const newConfig = {
-      provider,
-      apiKey: (apiKey && !apiKey.includes('***')) ? apiKey : current.apiKey,
-      model: model || '',
-      baseUrl: baseUrl || '',
-      enabled: enabled !== false,
+      hermesUrl: hermesUrl || current.hermesUrl,
+      model: model !== undefined ? model : current.model,
+      enabled: enabled !== undefined ? enabled : current.enabled,
     }
     saveAIConfig(newConfig)
     return { ok: true }
   })
 
+  // 测试 AI 连接（先检查 Hermes 是否在线）
   fastify.post('/api/ai/test', async (req, reply) => {
     try {
-      const result = await ask('回复"连接成功"四个字', '只回复用户要求的内容。')
+      const status = await checkHermesStatus()
+      if (!status.online) {
+        return reply.code(500).send({ ok: false, error: `Hermes Gateway 不在线 (${status.url})，请先启动 Hermes` })
+      }
+      const result = await ask('回复"连接成功"四个字', '你是一个测试助手，只回复用户要求的内容。')
       return { ok: true, response: result }
     } catch (e) {
       return reply.code(500).send({ ok: false, error: e.message })
@@ -55,7 +57,7 @@ export async function registerAIRoutes(fastify) {
 
   fastify.post('/api/ai/chat', async (req, reply) => {
     if (!isAIEnabled()) {
-      return reply.code(400).send({ error: 'AI 未启用，请先在设置中配置 API Key' })
+      return reply.code(400).send({ error: 'AI 未启用，请先在后台 AI 设置中开启' })
     }
     const { message } = req.body || {}
     if (!message) return reply.code(400).send({ error: 'message required' })
@@ -192,9 +194,4 @@ function startOfDay(ts) {
   const d = new Date(ts)
   d.setHours(0, 0, 0, 0)
   return d.getTime()
-}
-
-function maskKey(key) {
-  if (!key || key.length < 8) return '***'
-  return key.slice(0, 4) + '***' + key.slice(-4)
 }

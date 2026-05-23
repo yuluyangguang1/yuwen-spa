@@ -64,7 +64,6 @@ if (fs.existsSync(publicDir)) {
   await fastify.register(fastifyStatic, {
     root: publicDir,
     prefix: '/',
-    decorateReply: false,
   })
   // SPA fallback：任何未命中 API 的请求都返回 index.html，让前端 router 处理
   fastify.setNotFoundHandler(async (req, reply) => {
