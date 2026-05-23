@@ -1,23 +1,60 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { get } from '@/lib/api'
 import { formatMoney, formatElapsed } from '@/lib/utils'
-import { DollarSign, Clock } from 'lucide-react'
+import { useRealtime } from '@/lib/realtime'
+import { notifyNewTicket, warmupAudio } from '@/lib/notify'
+import { DollarSign, Clock, Bell } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
 
-// 技师端首页：当前排钟 + 今日业绩
-// TODO: 后续加技师登录选择，现在默认显示第一个技师
+// 技师端首页：当前排钟 + 今日业绩 + 实时通知
 export default function TechHome() {
+  const qc = useQueryClient()
+  const [toast, setToast] = useState<string | null>(null)
+
+  // 预热音频（页面首次交互后）
+  useEffect(() => {
+    const warmup = () => { warmupAudio(); document.removeEventListener('touchstart', warmup); document.removeEventListener('click', warmup) }
+    document.addEventListener('touchstart', warmup, { once: true })
+    document.addEventListener('click', warmup, { once: true })
+  }, [])
+
+  // WebSocket 实时事件
+  const showToast = useCallback((msg: string) => {
+    setToast(msg)
+    setTimeout(() => setToast(null), 5000)
+  }, [])
+
+  useRealtime({
+    'ticket:created': (data: any) => {
+      // 新钟单通知（只有自己的才提醒）
+      if (data.technician_id === currentTech?.id) {
+        const msg = `新派钟：${data.service_name || '服务'}${data.room_number ? ` · ${data.room_number}号房` : ''}`
+        showToast(msg)
+        notifyNewTicket(data)
+      }
+      qc.invalidateQueries({ queryKey: ['tickets-today'] })
+    },
+    'ticket:updated': () => qc.invalidateQueries({ queryKey: ['tickets-today'] }),
+    'ticket:paid': (data: any) => {
+      if (data.technician_id === currentTech?.id) {
+        showToast(`已结账：${data.service_name || '服务'} +${formatMoney(data.commission_cents)}`)
+      }
+      qc.invalidateQueries({ queryKey: ['tickets-today'] })
+    },
+  })
+
   const { data: technicians = [] } = useQuery({
     queryKey: ['technicians'],
     queryFn: () => get('/api/technicians'),
   })
 
-  // 暂时用第一个技师做演示（后续加登录）
+  // 暂时用第一个技师做演示（后续加登录关联）
   const currentTech = technicians[0]
 
   const { data: tickets = [] } = useQuery({
     queryKey: ['tickets-today'],
     queryFn: () => get('/api/tickets/today'),
-    refetchInterval: 5000,
+    refetchInterval: 10000, // 有 WebSocket 后降为 10s 兜底
   })
 
   if (!currentTech) return <div className="p-4 text-white/40">加载中...</div>
@@ -30,6 +67,16 @@ export default function TechHome() {
 
   return (
     <div className="p-4 space-y-4">
+      {/* Toast 通知 */}
+      {toast && (
+        <div className="fixed top-14 left-4 right-4 z-50 animate-bounce">
+          <div className="glass-card border-tan/40 bg-tan/10 p-3 flex items-center gap-2 text-sm">
+            <Bell size={16} className="text-tan flex-shrink-0" />
+            <span className="text-tan">{toast}</span>
+          </div>
+        </div>
+      )}
+
       {/* 身份卡 */}
       <div className="glass-card p-4 flex items-center gap-4">
         <div className="w-12 h-12 rounded-full bg-tan/20 flex items-center justify-center text-tan text-lg font-bold">
