@@ -116,8 +116,9 @@ export async function registerTicketRoutes(fastify) {
 
     const ticket = getTicketWithJoins(db, id)
     fastify.broadcast({ type: 'ticket:created', data: ticket })
-    // 企业微信 webhook 通知（异步，不阻塞响应）
-    notifyTicketCreated(ticket).catch(() => {})
+    // 企业微信 webhook 通知（群 + 技师个人）
+    const tech = technician_id ? db.prepare(`SELECT webhook_url FROM technicians WHERE id=?`).get(technician_id) : null
+    notifyTicketCreated(ticket, tech?.webhook_url).catch(() => {})
     return ticket
   })
 
@@ -204,8 +205,9 @@ export async function registerTicketRoutes(fastify) {
 
     const t = getTicketWithJoins(db, ticket.id)
     fastify.broadcast({ type: 'ticket:paid', data: t })
-    // 结账通知
-    notifyTicketPaid(t).catch(() => {})
+    // 结账通知（群 + 技师个人）
+    const tech = t.technician_id ? db.prepare(`SELECT webhook_url FROM technicians WHERE id=?`).get(t.technician_id) : null
+    notifyTicketPaid(t, tech?.webhook_url).catch(() => {})
     return t
   })
 }

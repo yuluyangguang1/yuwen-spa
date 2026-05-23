@@ -37,16 +37,13 @@ export function saveNotifyConfig(config) {
 }
 
 // ── 发送企业微信 webhook ──────────────────────────
-async function sendWebhook(content, msgtype = 'text') {
-  const config = getNotifyConfig()
-  if (!config.enabled || !config.webhookUrl) return false
-
+async function sendWebhookTo(url, content, msgtype = 'text') {
   const body = msgtype === 'markdown'
     ? { msgtype: 'markdown', markdown: { content } }
     : { msgtype: 'text', text: { content } }
 
   try {
-    const res = await fetch(config.webhookUrl, {
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
@@ -60,8 +57,14 @@ async function sendWebhook(content, msgtype = 'text') {
   }
 }
 
+async function sendWebhook(content, msgtype = 'text') {
+  const config = getNotifyConfig()
+  if (!config.enabled || !config.webhookUrl) return false
+  return sendWebhookTo(config.webhookUrl, content, msgtype)
+}
+
 // ── 业务通知：新派钟 ──────────────────────────────
-export async function notifyTicketCreated(ticket) {
+export async function notifyTicketCreated(ticket, techWebhookUrl) {
   const tech = ticket.technician_name || ticket.technician_number || '未指派'
   const service = ticket.service_name || '服务'
   const room = ticket.room_number ? `${ticket.room_number}号房` : ''
@@ -76,11 +79,16 @@ export async function notifyTicketCreated(ticket) {
     `> 时间：${time}`,
   ].filter(Boolean).join('\n')
 
-  return sendWebhook(content, 'markdown')
+  // 同时发群消息和个人消息
+  const tasks = [sendWebhook(content, 'markdown')]
+  if (techWebhookUrl) {
+    tasks.push(sendWebhookTo(techWebhookUrl, content, 'markdown'))
+  }
+  return Promise.all(tasks)
 }
 
 // ── 业务通知：结账 ────────────────────────────────
-export async function notifyTicketPaid(ticket) {
+export async function notifyTicketPaid(ticket, techWebhookUrl) {
   const tech = ticket.technician_name || ''
   const service = ticket.service_name || '服务'
   const price = (ticket.price_cents / 100).toFixed(0)
@@ -95,7 +103,11 @@ export async function notifyTicketPaid(ticket) {
     `> 提成：<font color="warning">¥${commission}</font>`,
   ].join('\n')
 
-  return sendWebhook(content, 'markdown')
+  const tasks = [sendWebhook(content, 'markdown')]
+  if (techWebhookUrl) {
+    tasks.push(sendWebhookTo(techWebhookUrl, content, 'markdown'))
+  }
+  return Promise.all(tasks)
 }
 
 // ── 测试连接 ──────────────────────────────────────

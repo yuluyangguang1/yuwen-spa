@@ -275,6 +275,9 @@ const MIGRATIONS = [
       )
     `)
   }},
+  { version: 3, up: (db) => {
+    db.exec(`ALTER TABLE technicians ADD COLUMN webhook_url TEXT`)
+  }},
 ]
 
 function runMigrations(db) {

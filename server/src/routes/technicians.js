@@ -35,7 +35,7 @@ export async function registerTechnicianRoutes(fastify) {
   })
 
   fastify.put('/api/technicians/:id', async (req, reply) => {
-    const fields = ['number', 'name', 'level', 'phone', 'status', 'active']
+    const fields = ['number', 'name', 'level', 'phone', 'status', 'active', 'webhook_url']
     const sets = []
     const args = []
     for (const f of fields) {
