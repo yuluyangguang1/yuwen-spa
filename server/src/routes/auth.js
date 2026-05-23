@@ -5,10 +5,18 @@
 // PUT  /api/auth/password       { oldPassword, newPassword } → { ok }
 
 import { verifyPassword, createToken, verifyToken, hashPassword } from '../auth/utils.js'
+import { checkRateLimit } from '../auth/ratelimit.js'
 
 export async function registerAuthRoutes(fastify) {
   // ── 登录 ────────────────────────────────────────
   fastify.post('/api/auth/login', async (req, reply) => {
+    // Rate limiting：同一 IP 5 分钟内最多 10 次
+    const ip = req.ip || req.socket?.remoteAddress || 'unknown'
+    const rl = checkRateLimit(ip)
+    if (!rl.ok) {
+      return reply.code(429).send({ error: `登录尝试过于频繁，请 ${rl.retryAfter} 秒后重试` })
+    }
+
     const { username, password } = req.body || {}
 
     if (!username || !password) {
@@ -41,6 +49,7 @@ export async function registerAuthRoutes(fastify) {
         role: user.role,
         display_name: user.display_name,
         shop_id: user.shop_id,
+        technician_id: user.technician_id,
       },
     }
   })
@@ -53,7 +62,7 @@ export async function registerAuthRoutes(fastify) {
     }
 
     const user = fastify.db.prepare(
-      `SELECT id, username, role, display_name, shop_id FROM users WHERE id = ? AND active = 1`
+      `SELECT id, username, role, display_name, shop_id, technician_id FROM users WHERE id = ? AND active = 1`
     ).get(payload.sub)
 
     if (!user) {

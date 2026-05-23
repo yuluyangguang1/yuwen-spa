@@ -9,6 +9,7 @@ interface User {
   role: 'admin' | 'pos' | 'tech'
   display_name: string
   shop_id: string
+  technician_id?: string
 }
 
 interface AuthState {

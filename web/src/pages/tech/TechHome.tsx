@@ -3,12 +3,14 @@ import { get } from '@/lib/api'
 import { formatMoney, formatElapsed } from '@/lib/utils'
 import { useRealtime } from '@/lib/realtime'
 import { notifyNewTicket, warmupAudio } from '@/lib/notify'
+import { useAuth } from '@/lib/auth'
 import { DollarSign, Clock, Bell } from 'lucide-react'
 import { useState, useEffect, useCallback } from 'react'
 
 // 技师端首页：当前排钟 + 今日业绩 + 实时通知
 export default function TechHome() {
   const qc = useQueryClient()
+  const { user } = useAuth()
   const [toast, setToast] = useState<string | null>(null)
 
   // 预热音频（页面首次交互后）
@@ -48,8 +50,10 @@ export default function TechHome() {
     queryFn: () => get('/api/technicians'),
   })
 
-  // 暂时用第一个技师做演示（后续加登录关联）
-  const currentTech = technicians[0]
+  // 根据登录用户关联技师（admin 登录 tech 端时用第一个技师）
+  const currentTech = user?.technician_id
+    ? technicians.find((t: any) => t.id === user.technician_id)
+    : technicians[0]
 
   const { data: tickets = [] } = useQuery({
     queryKey: ['tickets-today'],
