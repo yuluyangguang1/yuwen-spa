@@ -1,6 +1,8 @@
+import { useState } from 'react'
 import { Outlet, NavLink } from 'react-router-dom'
-import { LayoutDashboard, Scissors, Users, DoorOpen, UserCircle, Receipt, Bot, Settings, LogOut } from 'lucide-react'
+import { LayoutDashboard, Scissors, Users, DoorOpen, UserCircle, Receipt, Bot, Settings, LogOut, UserCog, Key } from 'lucide-react'
 import { useAuth } from '../lib/auth'
+import { ChangePasswordModal } from '../components/ChangePassword'
 
 const navItems = [
   { to: '/admin', label: '看板', icon: LayoutDashboard, end: true },
@@ -10,11 +12,13 @@ const navItems = [
   { to: '/admin/rooms', label: '房间', icon: DoorOpen },
   { to: '/admin/customers', label: '会员', icon: UserCircle },
   { to: '/admin/ai', label: 'AI 助手', icon: Bot },
+  { to: '/admin/users', label: '账号', icon: UserCog },
   { to: '/admin/settings', label: '设置', icon: Settings },
 ]
 
 export default function AdminLayout() {
   const { user, logout } = useAuth()
+  const [showPwd, setShowPwd] = useState(false)
 
   return (
     <div className="flex h-screen">
@@ -46,6 +50,13 @@ export default function AdminLayout() {
           <a href="/pos" className="block px-3 py-1.5 text-white/30 hover:text-white/60 rounded">→ 收银端</a>
           <a href="/tech" className="block px-3 py-1.5 text-white/30 hover:text-white/60 rounded">→ 技师端</a>
           <button
+            onClick={() => setShowPwd(true)}
+            className="w-full flex items-center gap-2 px-3 py-1.5 text-white/30 hover:text-tan rounded transition-colors"
+          >
+            <Key size={12} />
+            修改密码
+          </button>
+          <button
             onClick={logout}
             className="w-full flex items-center gap-2 px-3 py-1.5 text-white/30 hover:text-red-400 rounded transition-colors"
           >
@@ -73,10 +84,16 @@ export default function AdminLayout() {
       </nav>
 
       {/* 移动端顶栏：用户名 + 退出 */}
-      <div className="md:hidden fixed top-0 right-0 z-50 p-3">
+      <div className="md:hidden fixed top-0 right-0 z-50 p-3 flex items-center gap-2">
+        <button
+          onClick={() => setShowPwd(true)}
+          className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/5 text-white/40 text-[10px] hover:text-tan transition-colors"
+        >
+          <Key size={12} />
+        </button>
         <button
           onClick={logout}
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-white/5 text-white/40 text-[10px] hover:text-red-400 transition-colors"
+          className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/5 text-white/40 text-[10px] hover:text-red-400 transition-colors"
         >
           <LogOut size={12} />
           退出
@@ -86,6 +103,8 @@ export default function AdminLayout() {
       <main className="flex-1 overflow-y-auto pb-16 md:pb-0 pt-12 md:pt-0">
         <Outlet />
       </main>
+
+      {showPwd && <ChangePasswordModal onClose={() => setShowPwd(false)} />}
     </div>
   )
 }

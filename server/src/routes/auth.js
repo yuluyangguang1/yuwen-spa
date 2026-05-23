@@ -1,9 +1,10 @@
-// 鉴权路由：login / me
+// 鉴权路由：login / me / change-password
 //
-// POST /api/auth/login  { username, password } → { token, user }
-// GET  /api/auth/me      (需 Authorization: Bearer xxx) → { user }
+// POST /api/auth/login         { username, password } → { token, user }
+// GET  /api/auth/me             (需 Authorization: Bearer xxx) → { user }
+// PUT  /api/auth/password       { oldPassword, newPassword } → { ok }
 
-import { verifyPassword, createToken, verifyToken } from '../auth/utils.js'
+import { verifyPassword, createToken, verifyToken, hashPassword } from '../auth/utils.js'
 
 export async function registerAuthRoutes(fastify) {
   // ── 登录 ────────────────────────────────────────
@@ -60,6 +61,32 @@ export async function registerAuthRoutes(fastify) {
     }
 
     return { user }
+  })
+
+  // ── 修改自己的密码 ──────────────────────────────
+  fastify.put('/api/auth/password', async (req, reply) => {
+    const { oldPassword, newPassword } = req.body || {}
+
+    if (!oldPassword || !newPassword) {
+      return reply.code(400).send({ error: '请输入旧密码和新密码' })
+    }
+    if (newPassword.length < 4) {
+      return reply.code(400).send({ error: '新密码至少 4 位' })
+    }
+
+    const user = fastify.db.prepare(`SELECT * FROM users WHERE id = ?`).get(req.user.sub)
+    if (!user) {
+      return reply.code(404).send({ error: '用户不存在' })
+    }
+
+    if (!verifyPassword(oldPassword, user.password_hash)) {
+      return reply.code(400).send({ error: '旧密码错误' })
+    }
+
+    fastify.db.prepare(`UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?`)
+      .run(hashPassword(newPassword), Date.now(), user.id)
+
+    return { ok: true }
   })
 }
 

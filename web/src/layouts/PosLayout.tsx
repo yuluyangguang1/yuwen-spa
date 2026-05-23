@@ -1,10 +1,13 @@
+import { useState } from 'react'
 import { Outlet, NavLink } from 'react-router-dom'
-import { LayoutGrid, PlusCircle, Banknote, LogOut } from 'lucide-react'
+import { LayoutGrid, PlusCircle, Banknote, LogOut, Key } from 'lucide-react'
 import { useAuth } from '../lib/auth'
+import { ChangePasswordModal } from '../components/ChangePassword'
 
 // 收银端布局：底部大按钮导航，适合触屏操作
 export default function PosLayout() {
   const { user, logout } = useAuth()
+  const [showPwd, setShowPwd] = useState(false)
 
   return (
     <div className="flex flex-col h-screen">
@@ -12,13 +15,11 @@ export default function PosLayout() {
       <header className="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-[#0e0e0d]/80 backdrop-blur-xl">
         <h1 className="font-display text-xl text-tan">足韵 · 收银</h1>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-white/30">
-            <Clock />
-          </span>
-          <button
-            onClick={logout}
-            className="flex items-center gap-1 text-xs text-white/30 hover:text-red-400 transition-colors"
-          >
+          <span className="text-xs text-white/30"><Clock /></span>
+          <button onClick={() => setShowPwd(true)} className="text-white/30 hover:text-tan transition-colors" title="修改密码">
+            <Key size={14} />
+          </button>
+          <button onClick={logout} className="flex items-center gap-1 text-xs text-white/30 hover:text-red-400 transition-colors">
             <LogOut size={14} />
             <span className="hidden sm:inline">{user?.display_name}</span>
           </button>
@@ -36,21 +37,18 @@ export default function PosLayout() {
         <PosNavBtn to="/pos/new" icon={PlusCircle} label="开钟" />
         <PosNavBtn to="/pos/cashier" icon={Banknote} label="结账" />
       </nav>
+
+      {showPwd && <ChangePasswordModal onClose={() => setShowPwd(false)} />}
     </div>
   )
 }
 
 function PosNavBtn({ to, icon: Icon, label, end }: any) {
   return (
-    <NavLink
-      to={to}
-      end={end}
+    <NavLink to={to} end={end}
       className={({ isActive }) =>
-        `flex-1 flex flex-col items-center gap-1 py-3 transition-colors ${
-          isActive ? 'text-tan' : 'text-white/40'
-        }`
-      }
-    >
+        `flex-1 flex flex-col items-center gap-1 py-3 transition-colors ${isActive ? 'text-tan' : 'text-white/40'}`
+      }>
       <Icon size={22} />
       <span className="text-xs">{label}</span>
     </NavLink>

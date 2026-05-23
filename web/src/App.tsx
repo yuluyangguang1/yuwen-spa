@@ -29,6 +29,7 @@ import AdminCustomers from './pages/admin/AdminCustomers'
 import AdminTickets from './pages/admin/AdminTickets'
 import AdminAI from './pages/admin/AdminAI'
 import AdminSettings from './pages/admin/AdminSettings'
+import AdminUsers from './pages/admin/AdminUsers'
 
 // ─── 路由守卫 ──────────────────────────────────────
 function RequireAuth({ children, roles }: { children: ReactNode; roles?: string[] }) {
@@ -101,6 +102,7 @@ export default function App() {
         <Route path="customers" element={<AdminCustomers />} />
         <Route path="tickets" element={<AdminTickets />} />
         <Route path="ai" element={<AdminAI />} />
+        <Route path="users" element={<AdminUsers />} />
         <Route path="settings" element={<AdminSettings />} />
       </Route>
     </Routes>

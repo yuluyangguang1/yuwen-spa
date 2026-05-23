@@ -5,6 +5,7 @@
 
 import { registerAuthHook } from '../auth/hook.js'
 import { registerAuthRoutes } from './auth.js'
+import { registerUserRoutes } from './users.js'
 import { registerHealthRoutes } from './health.js'
 import { registerShopRoutes } from './shops.js'
 import { registerServiceRoutes } from './services.js'
@@ -21,6 +22,7 @@ export async function registerRoutes(fastify) {
 
   // 2. 注册路由
   await registerAuthRoutes(fastify)
+  await registerUserRoutes(fastify)
   await registerHealthRoutes(fastify)
   await registerShopRoutes(fastify)
   await registerServiceRoutes(fastify)
