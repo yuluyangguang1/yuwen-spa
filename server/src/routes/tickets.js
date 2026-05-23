@@ -14,6 +14,7 @@
 //   5. 每次状态变化都 broadcast，让所有屏幕实时刷新
 
 import { nanoid } from 'nanoid'
+import { notifyTicketCreated, notifyTicketPaid } from '../notify/index.js'
 
 export async function registerTicketRoutes(fastify) {
   const db = fastify.db
@@ -115,6 +116,8 @@ export async function registerTicketRoutes(fastify) {
 
     const ticket = getTicketWithJoins(db, id)
     fastify.broadcast({ type: 'ticket:created', data: ticket })
+    // 企业微信 webhook 通知（异步，不阻塞响应）
+    notifyTicketCreated(ticket).catch(() => {})
     return ticket
   })
 
@@ -201,6 +204,8 @@ export async function registerTicketRoutes(fastify) {
 
     const t = getTicketWithJoins(db, ticket.id)
     fastify.broadcast({ type: 'ticket:paid', data: t })
+    // 结账通知
+    notifyTicketPaid(t).catch(() => {})
     return t
   })
 }

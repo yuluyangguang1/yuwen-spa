@@ -15,6 +15,7 @@ import { registerCustomerRoutes } from './customers.js'
 import { registerTicketRoutes } from './tickets.js'
 import { registerReviewRoutes } from './reviews.js'
 import { registerAIRoutes } from './ai.js'
+import { registerNotifyRoutes } from './notify.js'
 
 export async function registerRoutes(fastify) {
   // 1. 先注册 auth hook（拦截未登录请求）
@@ -32,4 +33,5 @@ export async function registerRoutes(fastify) {
   await registerTicketRoutes(fastify)
   await registerReviewRoutes(fastify)
   await registerAIRoutes(fastify)
+  await registerNotifyRoutes(fastify)
 }
