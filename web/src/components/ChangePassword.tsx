@@ -3,8 +3,13 @@
 import { useState } from 'react'
 import { put } from '../lib/api'
 import { X, Key } from 'lucide-react'
+import { memo } from 'react'
 
-export function ChangePasswordModal({ onClose }: { onClose: () => void }) {
+interface ChangePasswordModalProps {
+  onClose: () => void
+}
+
+export const ChangePasswordModal = memo(function ChangePasswordModal({ onClose }: ChangePasswordModalProps) {
   const [oldPwd, setOldPwd] = useState('')
   const [newPwd, setNewPwd] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -75,4 +80,4 @@ export function ChangePasswordModal({ onClose }: { onClose: () => void }) {
       </div>
     </div>
   )
-}
+})

@@ -105,6 +105,19 @@
   .py-mobile-lg { padding-top: 0.75rem; padding-bottom: 0.75rem; }
   .text-mobile { font-size: 0.875rem; line-height: 1.25rem; }
 
+  /* 移动端响应式间距令牌（扩展） */
+  .mx-mobile { margin-left: 0.75rem; margin-right: 0.75rem; }
+  .my-mobile { margin-top: 0.5rem; margin-bottom: 0.5rem; }
+  .mt-mobile { margin-top: 0.5rem; }
+  .mb-mobile { margin-bottom: 0.5rem; }
+  .mt-mobile-lg { margin-top: 0.75rem; }
+  .mb-mobile-lg { margin-bottom: 0.75rem; }
+  .gap-mobile { gap: 0.5rem; }
+  .gap-mobile-sm { gap: 0.375rem; }
+  .gap-mobile-lg { gap: 0.75rem; }
+  .gap-mobile-xl { gap: 1rem; }
+  .w-full-mobile { width: 100%; }
+
   /* 排钟房间卡片动画 */
   .room-card {
     @apply transition-all duration-300;
@@ -115,20 +128,28 @@
 
   /* 骨架屏加载（统一颜色 + 光泽动画） */
   .skeleton {
-    @apply bg-[#2a2a29] rounded-lg;
-    animation: skeleton-pulse 1.8s ease-in-out infinite;
+    @apply bg-white/5 rounded-lg;
+    animation: skeleton-pulse 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    position: relative;
+    overflow: hidden;
   }
-  .skeleton-shimmer {
-    @apply skeleton;
-    background-image: linear-gradient(
+  .skeleton::after {
+    content: '';
+    @apply absolute inset-0;
+    background: linear-gradient(
       90deg,
       transparent 0%,
       rgba(255,255,255,0.06) 50%,
       transparent 100%
     );
     background-size: 200% 100%;
-    animation: skeleton-shimmer 2s ease-in-out infinite,
-               skeleton-pulse 1.8s ease-in-out infinite;
+    animation: skeleton-shimmer-inner 2s ease-in-out infinite;
+    pointer-events: none;
+  }
+  .skeleton-shimmer {
+    @apply skeleton;
+    animation: skeleton-shimmer-outer 2s ease-in-out infinite,
+               skeleton-pulse 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 
   /* 通知横幅 */
@@ -195,26 +216,7 @@
     @apply outline-none ring-2 ring-tan ring-offset-2 ring-offset-[#0a0a09];
   }
 
-  /* 骨架屏动画增强：脉冲 + 光泽 */
-  @keyframes skeleton-pulse {
-    0%, 100% { opacity: 0.4; }
-    50% { opacity: 0.8; }
-  }
-  @keyframes skeleton-shimmer {
-    0% { background-position: -200% 0; opacity: 0.5; }
-    100% { background-position: 200% 0; opacity: 0.8; }
-  }
-  .skeleton-shimmer {
-    background-image: linear-gradient(
-      90deg,
-      transparent 0%,
-      rgba(255,255,255,0.06) 50%,
-      transparent 100%
-    );
-    background-size: 200% 100%;
-    animation: skeleton-shimmer 2s ease-in-out infinite,
-               skeleton-pulse 1.8s ease-in-out infinite;
-  }
+  /* 骨架屏动画增强：脉冲 + 光泽（keyframes 移至 @layer utilities 外部） */
 
   /* 实时连接状态指示器 */
   .ws-status {
@@ -243,6 +245,20 @@
   .mobile-gap {
     @apply gap-3 md:gap-4;
   }
+}
+
+/* 骨架屏动画 keyframes（全局） */
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+@keyframes skeleton-shimmer-inner {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes skeleton-shimmer-outer {
+  0% { background-position: -200% 0; opacity: 0.5; }
+  100% { background-position: 200% 0; opacity: 0.8; }
 }
 
 /* ─── 焦点可见样式（全局键盘导航） ────────── */
@@ -301,6 +317,7 @@
 /* 减少动画偏好支持 */
 @media (prefers-reduced-motion: reduce) {
   .skeleton,
+  .skeleton-shimmer,
   .toast {
     animation: none !important;
   }

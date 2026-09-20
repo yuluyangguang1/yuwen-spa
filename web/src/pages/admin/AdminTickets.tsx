@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useSearchParams } from 'react-router-dom'
 import { get } from '@/lib/api'
 import { formatMoney, statusLabel, statusColor } from '@/lib/utils'
 import { Download, Filter } from 'lucide-react'
@@ -8,11 +9,30 @@ import { TableSkeleton } from '@/components/LoadingSkeleton'
 function today() { return new Date().toISOString().slice(0, 10) }
 function daysAgo(n: number) { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10) }
 
+type SortKey = 'time' | 'service' | 'technician' | 'room' | 'customer' | 'price' | 'commission' | 'status' | 'payment'
+type SortDir = 'asc' | 'desc'
+
 export default function AdminTickets() {
-  const [dateFrom, setDateFrom] = useState(daysAgo(7))
-  const [dateTo, setDateTo] = useState(today())
-  const [status, setStatus] = useState('')
-  const [techId, setTechId] = useState('')
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  // Read filters from URL, default to last 7 days
+  const dateFrom = searchParams.get('dateFrom') || daysAgo(7)
+  const dateTo = searchParams.get('dateTo') || today()
+  const status = searchParams.get('status') || ''
+  const techId = searchParams.get('techId') || ''
+
+  const [sortKey, setSortKey] = useState<SortKey>('time')
+  const [sortDir, setSortDir] = useState<SortDir>('desc')
+
+  // Set URL params whenever filters change
+  const setFilters = (updates: Record<string, string>) => {
+    const params = new URLSearchParams(searchParams)
+    Object.entries(updates).forEach(([k, v]) => {
+      if (v === '' || v === daysAgo(7) || v === today()) params.delete(k)
+      else params.set(k, v)
+    })
+    setSearchParams(params, { replace: true })
+  }
 
   const { data: technicians = [] } = useQuery({
     queryKey: ['technicians'],
@@ -26,6 +46,38 @@ export default function AdminTickets() {
     queryKey: ['tickets-all', dateFrom, dateTo, status, techId],
     queryFn: () => get(`/api/tickets?limit=500&date_from=${fromTs}&date_to=${toTs}${status ? `&status=${status}` : ''}${techId ? `&technician_id=${techId}` : ''}`),
   })
+
+  const sortedTickets = useMemo(() => {
+    const sorted = [...tickets]
+    sorted.sort((a: any, b: any) => {
+      let av: any, bv: any
+      switch (sortKey) {
+        case 'time': av = new Date(a.created_at).getTime(); bv = new Date(b.created_at).getTime(); break
+        case 'service': av = a.service_name || ''; bv = b.service_name || ''; break
+        case 'technician': av = a.technician_name || ''; bv = b.technician_name || ''; break
+        case 'room': av = a.room_number || ''; bv = b.room_number || ''; break
+        case 'customer': av = a.customer_name || ''; bv = b.customer_name || ''; break
+        case 'price': av = a.price_cents; bv = b.price_cents; break
+        case 'commission': av = a.commission_cents; bv = b.commission_cents; break
+        case 'status': av = a.status; bv = b.status; break
+        case 'payment': av = a.payment_method || ''; bv = b.payment_method || ''; break
+        default: av = 0; bv = 0
+      }
+      if (typeof av === 'string') return sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av)
+      return sortDir === 'asc' ? av - bv : bv - av
+    })
+    return sorted
+  }, [tickets, sortKey, sortDir])
+
+  const handleSort = (key: SortKey) => {
+    if (sortKey === key) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
+    else { setSortKey(key); setSortDir('desc') }
+  }
+
+  const sortIcon = (key: SortKey) => {
+    if (sortKey !== key) return ' ↕'
+    return sortDir === 'asc' ? ' ↑' : ' ↓'
+  }
 
   if (isLoading) {
     return (
@@ -90,13 +142,13 @@ export default function AdminTickets() {
       <div className="glass-card p-3 flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-1.5">
           <Filter size={14} className="text-white/30" />
-          <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)}
+          <input type="date" value={dateFrom} onChange={e => setFilters({ dateFrom: e.target.value })}
             className="bg-white/5 border border-white/10 rounded px-2 py-1 text-xs focus:outline-none focus:border-tan/50" />
           <span className="text-white/30 text-xs">至</span>
-          <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)}
+          <input type="date" value={dateTo} onChange={e => setFilters({ dateTo: e.target.value })}
             className="bg-white/5 border border-white/10 rounded px-2 py-1 text-xs focus:outline-none focus:border-tan/50" />
         </div>
-        <select value={status} onChange={e => setStatus(e.target.value)}
+        <select value={status} onChange={e => setFilters({ status: e.target.value })}
           className="bg-white/5 border border-white/10 rounded px-2 py-1 text-xs focus:outline-none">
           <option value="">全部状态</option>
           <option value="active">进行中</option>
@@ -104,7 +156,7 @@ export default function AdminTickets() {
           <option value="paid">已结账</option>
           <option value="canceled">已取消</option>
         </select>
-        <select value={techId} onChange={e => setTechId(e.target.value)}
+        <select value={techId} onChange={e => setFilters({ techId: e.target.value })}
           className="bg-white/5 border border-white/10 rounded px-2 py-1 text-xs focus:outline-none">
           <option value="">全部技师</option>
           {technicians.map((t: any) => (
@@ -138,19 +190,19 @@ export default function AdminTickets() {
         <table className="w-full text-sm min-w-[700px]">
           <thead>
             <tr className="border-b border-white/5 text-white/40 text-xs">
-              <th className="text-left p-3">时间</th>
-              <th className="text-left p-3">项目</th>
-              <th className="text-left p-3">技师</th>
-              <th className="text-left p-3">房间</th>
-              <th className="text-left p-3">顾客</th>
-              <th className="text-right p-3">金额</th>
-              <th className="text-right p-3">提成</th>
-              <th className="text-center p-3">状态</th>
-              <th className="text-left p-3">支付</th>
+              <th className="text-left p-3 cursor-pointer hover:text-white/70 select-none" onClick={() => handleSort('time')}>时间{sortIcon('time')}</th>
+              <th className="text-left p-3 cursor-pointer hover:text-white/70 select-none" onClick={() => handleSort('service')}>项目{sortIcon('service')}</th>
+              <th className="text-left p-3 cursor-pointer hover:text-white/70 select-none" onClick={() => handleSort('technician')}>技师{sortIcon('technician')}</th>
+              <th className="text-left p-3 cursor-pointer hover:text-white/70 select-none" onClick={() => handleSort('room')}>房间{sortIcon('room')}</th>
+              <th className="text-left p-3 cursor-pointer hover:text-white/70 select-none" onClick={() => handleSort('customer')}>顾客{sortIcon('customer')}</th>
+              <th className="text-right p-3 cursor-pointer hover:text-white/70 select-none" onClick={() => handleSort('price')}>金额{sortIcon('price')}</th>
+              <th className="text-right p-3 cursor-pointer hover:text-white/70 select-none" onClick={() => handleSort('commission')}>提成{sortIcon('commission')}</th>
+              <th className="text-center p-3 cursor-pointer hover:text-white/70 select-none" onClick={() => handleSort('status')}>状态{sortIcon('status')}</th>
+              <th className="text-left p-3 cursor-pointer hover:text-white/70 select-none" onClick={() => handleSort('payment')}>支付{sortIcon('payment')}</th>
             </tr>
           </thead>
           <tbody>
-            {tickets.map((t: any) => (
+            {sortedTickets.map((t: any) => (
               <tr key={t.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02]">
                 <td className="p-3 text-white/40 text-xs whitespace-nowrap">
                   {new Date(t.created_at).toLocaleString('zh-CN', { hour: '2-digit', minute: '2-digit' })}

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { get, post } from '@/lib/api'
 import { Bell, Send, CheckCircle, XCircle } from 'lucide-react'
+import { Field } from '@/components/Field'
 
 export default function AdminSettings() {
   const { data: shop } = useQuery({
@@ -155,15 +156,6 @@ function NotifyConfig() {
         </div>
       )}
     </section>
-  )
-}
-
-function Field({ label, value }: { label: string; value?: string }) {
-  return (
-    <div className="flex items-center justify-between">
-      <span className="text-sm text-white/40">{label}</span>
-      <span className="text-sm">{value || '-'}</span>
-    </div>
   )
 }
 

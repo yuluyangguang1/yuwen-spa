@@ -6,6 +6,8 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { get, post, put } from '@/lib/api'
 import { Plus, Key, Ban, CheckCircle, Edit2, X } from 'lucide-react'
+import { Field } from '@/components/Field'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 
 const ROLE_LABELS: Record<string, string> = {
   admin: '管理员',
@@ -18,6 +20,11 @@ export default function AdminUsers() {
   const [showForm, setShowForm] = useState(false)
   const [editUser, setEditUser] = useState<any>(null)
   const [resetPwdUser, setResetPwdUser] = useState<any>(null)
+  const [confirmState, setConfirmState] = useState<{
+    open: boolean
+    onConfirm: () => void
+    message: string
+  }>({ open: false, onConfirm: () => {}, message: '' })
 
   const { data } = useQuery({
     queryKey: ['users'],
@@ -51,6 +58,18 @@ export default function AdminUsers() {
     onSuccess: invalidate,
   })
 
+  const handleToggle = (u: any, active: number) => {
+    toggleMut.mutate({ id: u.id, active })
+  }
+
+  const handleDisable = (u: any) => {
+    setConfirmState({
+      open: true,
+      message: `确定禁用 ${u.display_name || u.username}？`,
+      onConfirm: () => { toggleMut.mutate({ id: u.id, active: 0 }); setConfirmState({ open: false, onConfirm: () => {}, message: '' }) },
+    })
+  }
+
   return (
     <div className="p-4 md:p-6 space-y-4">
       <div className="flex items-center justify-between">
@@ -59,8 +78,7 @@ export default function AdminUsers() {
           onClick={() => setShowForm(true)}
           className="flex items-center gap-1.5 bg-tan text-white px-4 py-2 rounded-lg text-sm active:scale-[0.97]"
         >
-          <Plus size={14} />
-          新建账号
+          <Plus size={14} /> 新建账号
         </button>
       </div>
 
@@ -107,10 +125,7 @@ export default function AdminUsers() {
                 </button>
                 {u.active ? (
                   <button
-                    onClick={() => {
-                      if (confirm(`确定禁用 ${u.display_name || u.username}？`))
-                        toggleMut.mutate({ id: u.id, active: 0 })
-                    }}
+                    onClick={() => handleDisable(u)}
                     className="p-2 text-white/30 hover:text-red-400 rounded transition-colors"
                     title="禁用"
                   >
@@ -118,7 +133,7 @@ export default function AdminUsers() {
                   </button>
                 ) : (
                   <button
-                    onClick={() => toggleMut.mutate({ id: u.id, active: 1 })}
+                    onClick={() => handleToggle(u, 1)}
                     className="p-2 text-white/30 hover:text-green-400 rounded transition-colors"
                     title="启用"
                   >
@@ -164,6 +179,15 @@ export default function AdminUsers() {
           loading={resetPwdMut.isPending}
         />
       )}
+
+      {/* 自定义确认弹窗 */}
+      <ConfirmDialog
+        open={confirmState.open}
+        message={confirmState.message}
+        variant="danger"
+        onConfirm={confirmState.onConfirm}
+        onCancel={() => setConfirmState({ open: false, onConfirm: () => {}, message: '' })}
+      />
     </div>
   )
 }
@@ -272,25 +296,6 @@ function ResetPwdForm({ username, onSubmit, onClose, error, loading }: {
           </button>
         </form>
       </div>
-    </div>
-  )
-}
-
-// ── 通用表单字段 ──────────────────────────────────
-function Field({ label, value, onChange, type = 'text', placeholder, required }: {
-  label: string; value: string; onChange: (v: string) => void; type?: string; placeholder?: string; required?: boolean
-}) {
-  return (
-    <div>
-      <label className="block text-xs text-white/40 mb-1">{label}</label>
-      <input
-        type={type}
-        value={value}
-        onChange={e => onChange(e.target.value)}
-        placeholder={placeholder}
-        required={required}
-        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-white/20 focus:outline-none focus:border-tan/50"
-      />
     </div>
   )
 }

@@ -1,8 +1,20 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { get, post, put } from '@/lib/api'
 import { formatMoney } from '@/lib/utils'
 import { Plus, Edit2, Search, Wallet, X } from 'lucide-react'
+import { Field } from '@/components/Field'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
+
+function useDebounce<T>(value: T, delay: number): T {
+  const [debounced, setDebounced] = useState(value)
+  const timerRef = useRef<number>(undefined as unknown as number)
+  useEffect(() => {
+    timerRef.current = window.setTimeout(() => setDebounced(value), delay)
+    return () => { if (timerRef.current) clearTimeout(timerRef.current) }
+  }, [value, delay])
+  return debounced
+}
 
 export default function AdminCustomers() {
   const qc = useQueryClient()
@@ -10,10 +22,17 @@ export default function AdminCustomers() {
   const [showForm, setShowForm] = useState(false)
   const [editItem, setEditItem] = useState<any>(null)
   const [topupItem, setTopupItem] = useState<any>(null)
+  const [confirmState, setConfirmState] = useState<{
+    open: boolean
+    onConfirm: () => void
+    message: string
+  }>({ open: false, onConfirm: () => {}, message: '' })
+
+  const debouncedSearch = useDebounce(search, 300)
 
   const { data: customers = [] } = useQuery({
-    queryKey: ['customers', search],
-    queryFn: () => get(`/api/customers${search ? `?q=${encodeURIComponent(search)}` : ''}`),
+    queryKey: ['customers', debouncedSearch],
+    queryFn: () => get(`/api/customers${debouncedSearch ? `?q=${encodeURIComponent(debouncedSearch)}` : ''}`),
   })
   const shop_id = customers[0]?.shop_id
 
@@ -100,6 +119,15 @@ export default function AdminCustomers() {
       {topupItem && <TopupForm customer={topupItem}
         onSubmit={(amount) => topupMut.mutate({ id: topupItem.id, amount })}
         onClose={() => setTopupItem(null)} error={topupMut.error?.message} loading={topupMut.isPending} />}
+
+      {/* 自定义确认弹窗 */}
+      <ConfirmDialog
+        open={confirmState.open}
+        message={confirmState.message}
+        variant="info"
+        onConfirm={confirmState.onConfirm}
+        onCancel={() => setConfirmState({ open: false, onConfirm: () => {}, message: '' })}
+      />
     </div>
   )
 }
@@ -147,9 +175,7 @@ function CustomerForm({ title, initial, shop_id, onSubmit, onClose, error, loadi
               <div className="flex gap-1.5">
                 {['男', '女'].map(g => (
                   <button key={g} type="button" onClick={() => setF({ ...f, gender: g })}
-                    className={`flex-1 py-1.5 rounded-lg text-xs border ${f.gender === g ? 'border-tan/50 bg-tan/10 text-tan' : 'border-white/10 text-white/40'}`}>
-                    {g}
-                  </button>
+                    className={`flex-1 py-1.5 rounded-lg text-xs border ${f.gender === g ? 'border-tan/50 bg-tan/10 text-tan' : 'border-white/10 text-white/40'}`}>{g}</button>
                 ))}
               </div>
             </div>
@@ -195,9 +221,7 @@ function TopupForm({ customer, onSubmit, onClose, error, loading }: {
         <div className="flex gap-2">
           {presets.map(p => (
             <button key={p} type="button" onClick={() => setYuan(String(p))}
-              className={`flex-1 py-2 rounded-lg text-sm border ${yuan === String(p) ? 'border-tan/50 bg-tan/10 text-tan' : 'border-white/10 text-white/40'}`}>
-              {p}
-            </button>
+              className={`flex-1 py-2 rounded-lg text-sm border ${yuan === String(p) ? 'border-tan/50 bg-tan/10 text-tan' : 'border-white/10 text-white/40'}`}>{p}</button>
           ))}
         </div>
         <div>
@@ -211,18 +235,6 @@ function TopupForm({ customer, onSubmit, onClose, error, loading }: {
           {loading ? '充值中...' : `确认充值 ¥${yuan || 0}`}
         </button>
       </div>
-    </div>
-  )
-}
-
-function Field({ label, value, onChange, type = 'text', required }: {
-  label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean
-}) {
-  return (
-    <div>
-      <label className="block text-xs text-white/40 mb-1">{label}</label>
-      <input type={type} value={value} onChange={e => onChange(e.target.value)} required={required}
-        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-white/20 focus:outline-none focus:border-tan/50" />
     </div>
   )
 }

@@ -1,9 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
 import { get } from '@/lib/api'
 import { Star, X, Award } from 'lucide-react'
+import { memo } from 'react'
 
 // 技师个人简介弹窗（顾客端点击技师后展示）
-export default function TechProfile({ techId, onClose, onSelect }: {
+export const TechProfile = memo(function TechProfile({ techId, onClose, onSelect }: {
   techId: string
   onClose: () => void
   onSelect: () => void
@@ -162,7 +163,7 @@ export default function TechProfile({ techId, onClose, onSelect }: {
       </div>
     </div>
   )
-}
+})
 
 function RatingStars({ rating, size = 14 }: { rating: number; size?: number }) {
   return (

@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { get, post, put } from '@/lib/api'
-import { statusLabel } from '@/lib/utils'
 import { Plus, X, Bell } from 'lucide-react'
+import { Field } from '@/components/Field'
+import { TechCard } from '@/components/TechCard'
 
 export default function AdminTechnicians() {
   const qc = useQueryClient()
@@ -51,23 +52,7 @@ export default function AdminTechnicians() {
           </thead>
           <tbody>
             {technicians.map((t: any) => (
-              <tr key={t.id} className="border-b border-white/5 last:border-0 hover:bg-white/[0.02] cursor-pointer"
-                onClick={() => setEditTech(t)}>
-                <td className="p-3 font-bold text-white/60">{t.number}</td>
-                <td className="p-3">{t.name}</td>
-                <td className="p-3 text-white/50">{t.level || '-'}</td>
-                <td className="p-3 text-white/40">{t.phone || '-'}</td>
-                <td className="p-3 text-center">
-                  {t.webhook_url ? <Bell size={14} className="text-tan mx-auto" /> : <span className="text-white/20 text-xs">-</span>}
-                </td>
-                <td className="p-3 text-center">
-                  <span className={`text-xs px-2 py-0.5 rounded ${
-                    t.status === 'working' ? 'bg-tan/15 text-tan' :
-                    t.status === 'idle' ? 'bg-moss/15 text-moss' :
-                    'bg-white/5 text-white/30'
-                  }`}>{statusLabel(t.status)}</span>
-                </td>
-              </tr>
+              <TechCard key={t.id} tech={t} onClick={(tech) => setEditTech(tech)} />
             ))}
           </tbody>
         </table>
@@ -128,9 +113,7 @@ function TechForm({ title, initial, shop_id, onSubmit, onClose, error, loading }
             <div className="flex gap-1.5 flex-wrap">
               {['初级', '中级', '高级', '技师长'].map(l => (
                 <button key={l} type="button" onClick={() => setF({ ...f, level: l })}
-                  className={`px-3 py-1.5 rounded-lg text-xs border ${f.level === l ? 'border-tan/50 bg-tan/10 text-tan' : 'border-white/10 text-white/40'}`}>
-                  {l}
-                </button>
+                  className={`px-3 py-1.5 rounded-lg text-xs border ${f.level === l ? 'border-tan/50 bg-tan/10 text-tan' : 'border-white/10 text-white/40'}`}>{l}</button>
               ))}
             </div>
           </div>
@@ -158,18 +141,6 @@ function TechForm({ title, initial, shop_id, onSubmit, onClose, error, loading }
           </button>
         </form>
       </div>
-    </div>
-  )
-}
-
-function Field({ label, value, onChange, type = 'text', required }: {
-  label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean
-}) {
-  return (
-    <div>
-      <label className="block text-xs text-white/40 mb-1">{label}</label>
-      <input type={type} value={value} onChange={e => onChange(e.target.value)} required={required}
-        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-white/20 focus:outline-none focus:border-tan/50" />
     </div>
   )
 }

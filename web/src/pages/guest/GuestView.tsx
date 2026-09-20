@@ -4,7 +4,7 @@ import { get, post } from '@/lib/api'
 import { formatMoney, formatElapsed } from '@/lib/utils'
 import { Clock, User, Check, Plus, Star } from 'lucide-react'
 import { useState } from 'react'
-import TechProfile from '@/components/TechProfile'
+import { TechProfile } from '@/components/TechProfile'
 
 // 顾客端：扫房间二维码进入
 // URL: /guest/room/:roomId

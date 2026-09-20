@@ -3,11 +3,18 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { get, post, put, del } from '@/lib/api'
 import { formatMoney } from '@/lib/utils'
 import { Plus, Edit2, Trash2, X } from 'lucide-react'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { Field } from '@/components/Field'
 
 export default function AdminServices() {
   const qc = useQueryClient()
   const [showForm, setShowForm] = useState(false)
   const [editItem, setEditItem] = useState<any>(null)
+  const [confirmState, setConfirmState] = useState<{
+    open: boolean
+    onConfirm: () => void
+    message: string
+  }>({ open: false, onConfirm: () => {}, message: '' })
 
   const { data: services = [] } = useQuery({
     queryKey: ['services'],
@@ -30,6 +37,14 @@ export default function AdminServices() {
     mutationFn: (id: string) => del(`/api/services/${id}`),
     onSuccess: invalidate,
   })
+
+  const handleDelete = (s: any) => {
+    setConfirmState({
+      open: true,
+      message: `停用「${s.name}」？`,
+      onConfirm: () => { deleteMut.mutate(s.id); setConfirmState({ open: false, onConfirm: () => {}, message: '' }) },
+    })
+  }
 
   return (
     <div className="p-4 md:p-6 space-y-4">
@@ -66,15 +81,14 @@ export default function AdminServices() {
                 </td>
                 <td className="p-3 text-center">
                   <button onClick={() => updateMut.mutate({ id: s.id, active: s.active ? 0 : 1 })}
-                    className={`text-xs px-2 py-0.5 rounded cursor-pointer ${s.active ? 'bg-moss/15 text-moss' : 'bg-white/5 text-white/30'}`}>
-                    {s.active ? '启用' : '停用'}
-                  </button>
+                    className={`text-xs px-2 py-0.5 rounded cursor-pointer ${s.active ? 'bg-moss/15 text-moss' : 'bg-white/5 text-white/30'}`}>{
+                    s.active ? '启用' : '停用'
+                  }</button>
                 </td>
                 <td className="p-3 text-center">
                   <div className="flex items-center justify-center gap-1">
                     <button onClick={() => setEditItem(s)} className="p-1.5 text-white/30 hover:text-tan rounded"><Edit2 size={14} /></button>
-                    <button onClick={() => { if (confirm(`停用「${s.name}」？`)) deleteMut.mutate(s.id) }}
-                      className="p-1.5 text-white/30 hover:text-red-400 rounded"><Trash2 size={14} /></button>
+                    <button onClick={() => handleDelete(s)} className="p-1.5 text-white/30 hover:text-red-400 rounded"><Trash2 size={14} /></button>
                   </div>
                 </td>
               </tr>
@@ -90,6 +104,15 @@ export default function AdminServices() {
       {editItem && <ServiceForm title="编辑项目" initial={editItem}
         onSubmit={(d) => updateMut.mutate({ id: editItem.id, ...d })} onClose={() => setEditItem(null)}
         error={updateMut.error?.message} loading={updateMut.isPending} />}
+
+      <ConfirmDialog
+        open={confirmState.open}
+        title="停用服务"
+        message={confirmState.message}
+        variant="danger"
+        onConfirm={confirmState.onConfirm}
+        onCancel={() => setConfirmState({ open: false, onConfirm: () => {}, message: '' })}
+      />
     </div>
   )
 }
@@ -103,7 +126,7 @@ function ServiceForm({ title, initial, shop_id, onSubmit, onClose, error, loadin
     duration: initial?.duration || 60,
     price_yuan: initial ? (initial.price_cents / 100).toString() : '',
     commission_type: initial?.commission_type || 'percent',
-    commission_value: initial ? (initial.commission_type === 'percent' ? (initial.commission_value / 100).toString() : (initial.commission_value / 100).toString()) : '20',
+    commission_value: initial ? (initial.commission_type === 'percent' ? (initial.commission_value / 100).toString() : String(initial.commission_value)) : '20',
   })
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -115,7 +138,9 @@ function ServiceForm({ title, initial, shop_id, onSubmit, onClose, error, loadin
       duration: Number(f.duration),
       price_cents: Math.round(Number(f.price_yuan) * 100),
       commission_type: f.commission_type,
-      commission_value: f.commission_type === 'percent' ? Math.round(Number(f.commission_value) * 100) : Math.round(Number(f.commission_value) * 100),
+      commission_value: f.commission_type === 'percent'
+        ? Math.round(Number(f.commission_value) * 100)
+        : Math.round(Number(f.commission_value)),
     })
   }
 
@@ -133,9 +158,7 @@ function ServiceForm({ title, initial, shop_id, onSubmit, onClose, error, loadin
             <div className="flex gap-1.5 flex-wrap">
               {['足疗', '推拿', '采耳', '其他'].map(c => (
                 <button key={c} type="button" onClick={() => setF({ ...f, category: c })}
-                  className={`px-3 py-1.5 rounded-lg text-xs border ${f.category === c ? 'border-tan/50 bg-tan/10 text-tan' : 'border-white/10 text-white/40'}`}>
-                  {c}
-                </button>
+                  className={`px-3 py-1.5 rounded-lg text-xs border ${f.category === c ? 'border-tan/50 bg-tan/10 text-tan' : 'border-white/10 text-white/40'}`}>{c}</button>
               ))}
             </div>
           </div>
@@ -149,9 +172,9 @@ function ServiceForm({ title, initial, shop_id, onSubmit, onClose, error, loadin
               <div className="flex gap-1.5">
                 {['percent', 'fixed'].map(t => (
                   <button key={t} type="button" onClick={() => setF({ ...f, commission_type: t })}
-                    className={`flex-1 py-1.5 rounded-lg text-xs border ${f.commission_type === t ? 'border-tan/50 bg-tan/10 text-tan' : 'border-white/10 text-white/40'}`}>
-                    {t === 'percent' ? '百分比' : '固定金额'}
-                  </button>
+                    className={`flex-1 py-1.5 rounded-lg text-xs border ${f.commission_type === t ? 'border-tan/50 bg-tan/10 text-tan' : 'border-white/10 text-white/40'}`}>{
+                    t === 'percent' ? '百分比' : '固定金额'
+                  }</button>
                 ))}
               </div>
             </div>
@@ -165,18 +188,6 @@ function ServiceForm({ title, initial, shop_id, onSubmit, onClose, error, loadin
           </button>
         </form>
       </div>
-    </div>
-  )
-}
-
-function Field({ label, value, onChange, type = 'text', required }: {
-  label: string; value: string; onChange: (v: string) => void; type?: string; required?: boolean
-}) {
-  return (
-    <div>
-      <label className="block text-xs text-white/40 mb-1">{label}</label>
-      <input type={type} value={value} onChange={e => onChange(e.target.value)} required={required}
-        className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-white/20 focus:outline-none focus:border-tan/50" />
     </div>
   )
 }

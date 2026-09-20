@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { get, post, del } from '@/lib/api'
 import { Bot, Send, FileText, Star, Wifi, WifiOff, Trash2 } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
+import { ConfirmDialog } from '@/components/ConfirmDialog'
 
 export default function AdminAI() {
   const [activeTab, setActiveTab] = useState<'config' | 'chat' | 'tools'>('config')
@@ -169,6 +170,12 @@ function AIChat() {
     onSuccess: () => setMessages([]),
   })
 
+  const [confirmState, setConfirmState] = useState<{
+    open: boolean
+    onConfirm: () => void
+    message: string
+  }>({ open: false, onConfirm: () => {}, message: '' })
+
   const handleSend = () => {
     if (!input.trim()) return
     setMessages(prev => [...prev, { role: 'user', content: input }])
@@ -183,7 +190,7 @@ function AIChat() {
         <span className="text-xs text-white/30">{messages.length} 条对话</span>
         {messages.length > 0 && (
           <button
-            onClick={() => { if (confirm('清空所有对话记录？')) clearMutation.mutate() }}
+            onClick={() => setConfirmState({ open: true, message: '清空所有对话记录？', onConfirm: () => clearMutation.mutate() })}
             className="flex items-center gap-1 text-xs text-white/30 hover:text-red-400 transition-colors"
           >
             <Trash2 size={12} /> 清空
@@ -227,6 +234,15 @@ function AIChat() {
           <Send size={16} />
         </button>
       </div>
+      <ConfirmDialog
+        open={confirmState.open}
+        message={confirmState.message}
+        variant="danger"
+        confirmLabel="清空"
+        onConfirm={() => { confirmState.onConfirm(); setConfirmState({ open: false, onConfirm: () => {}, message: '' }) }}
+        onCancel={() => setConfirmState({ open: false, onConfirm: () => {}, message: '' })}
+        loading={clearMutation.isPending}
+      />
     </div>
   )
 }

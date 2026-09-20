@@ -3,6 +3,7 @@
 // 全场一目了然：技师状态、房间状态、当前钟单、今日统计
 // 实时刷新（WebSocket + 10s 轮询兜底）
 
+import { useMemo } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { get } from '@/lib/api'
 import { useRealtime } from '@/lib/realtime'
@@ -42,10 +43,10 @@ export default function AdminDashboard() {
   const rooms = data?.rooms || []
   const stats = data?.stats || { total: 0, active: 0, paid: 0, pending: 0, revenue: 0 }
 
-  const idleTechs = techs.filter((t: any) => t.status === 'idle')
-  const workingTechs = techs.filter((t: any) => t.status === 'working')
-  const idleRooms = rooms.filter((r: any) => r.status === 'idle')
-  const occupiedRooms = rooms.filter((r: any) => r.status === 'occupied')
+  const idleTechs = useMemo(() => techs.filter((t: any) => t.status === 'idle'), [techs])
+  const workingTechs = useMemo(() => techs.filter((t: any) => t.status === 'working'), [techs])
+  const idleRooms = useMemo(() => rooms.filter((r: any) => r.status === 'idle'), [rooms])
+  const occupiedRooms = useMemo(() => rooms.filter((r: any) => r.status === 'occupied'), [rooms])
 
   return (
     <div className="p-4 md:p-6 space-y-5">
