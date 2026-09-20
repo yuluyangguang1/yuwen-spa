@@ -1,6 +1,6 @@
-import { useState, useCallback, useMemo } from 'react'
+import { useState, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { post, put, del } from '@/lib/api'
+import { post, del } from '@/lib/api'
 
 export interface ConfirmState {
   open: boolean
@@ -8,7 +8,7 @@ export interface ConfirmState {
   message: string
 }
 
-export function useCRUD<T>({
+export function useCRUD<T = any[]>({
   queryKey,
   queryFn,
   createFn,
@@ -40,17 +40,17 @@ export function useCRUD<T>({
   }, [qc, queryKey])
 
   const createMut = useMutation({
-    mutationFn: createFn || ((data: any) => post('/', data)),
+    mutationFn: (data: any) => (createFn || ((data: any) => post('/', data)))(data),
     onSuccess: () => { invalidate(); setModalOpen(false); onSuccess?.() },
   })
 
   const updateMut = useMutation({
-    mutationFn: updateFn || (({ id, ...data }: any) => put(`/${id}`, data)),
+    mutationFn: async (item: any) => { if (updateFn) return updateFn(item.id, item); const res = await fetch(`/api/${item.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(item) }); return res.json(); },
     onSuccess: () => { invalidate(); setEditingItem(null); onSuccess?.() },
   })
 
   const deleteMut = useMutation({
-    mutationFn: deleteFn || ((id: string) => del(`/${id}`)),
+    mutationFn: (id: any) => (deleteFn || ((id: string) => del(`/${id}`)))(id),
     onSuccess: () => { invalidate(); onSuccess?.() },
   })
 
@@ -81,7 +81,7 @@ export function useCRUD<T>({
   }
 }
 
-export function useSimpleCRUD<T>({
+export function useSimpleCRUD<T = any[]>({
   queryKey,
   queryFn,
   createFn,
@@ -109,17 +109,17 @@ export function useSimpleCRUD<T>({
   const invalidate = () => qc.invalidateQueries({ queryKey })
 
   const createMut = useMutation({
-    mutationFn: createFn || ((data: any) => post('/', data)),
+    mutationFn: (data: any) => (createFn || ((data: any) => post('/', data)))(data),
     onSuccess: () => { invalidate(); setShowForm(false) },
   })
 
   const updateMut = useMutation({
-    mutationFn: updateFn || (({ id, ...data }: any) => put(`/${id}`, data)),
+    mutationFn: async (item: any) => { if (updateFn) return updateFn(item.id, item); const res = await fetch(`/api/${item.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(item) }); return res.json(); },
     onSuccess: () => { invalidate(); setEditItem(null) },
   })
 
   const deleteMut = useMutation({
-    mutationFn: deleteFn || ((id: string) => del(`/${id}`)),
+    mutationFn: (id: any) => (deleteFn || ((id: string) => del(`/${id}`)))(id),
     onSuccess: invalidate,
   })
 
