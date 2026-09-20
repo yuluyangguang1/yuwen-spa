@@ -32,7 +32,9 @@ export async function api<T = any>(path: string, opts?: RequestInit): Promise<T>
       // token 失效，记录重定向路径（SPA 路由导航而非全量刷新）
       localStorage.removeItem('yuwen_token')
       sessionStorage.setItem('yuwen_redirect', location.pathname + location.search)
-      throw new Error('请先登录')
+      // 派发自定义事件，由 main.tsx 中的路由监听器处理 SPA 导航
+      window.dispatchEvent(new CustomEvent('yuwen:401'))
+      return {} as T
     }
 
     if (!res.ok) {

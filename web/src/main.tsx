@@ -52,6 +52,34 @@ const queryClient = new QueryClient({
   },
 })
 
+// ─── 导航引用（供 ErrorBoundary 使用）─────────────
+let navigateFn: ((path: string, opts?: { replace?: boolean }) => void) | null = null
+
+// ─── 导航引用设置器 ──────────────────────
+// 将 useNavigate 注入到模块级 navigateFn，供 ErrorBoundary 使用
+function NavigateRef() {
+  const navigate = useNavigate()
+  React.useEffect(() => { navigateFn = navigate }, [navigate])
+  return null
+}
+
+// ─── 401 事件监听组件 ──────────────────────
+// 监听 api.ts 派发的 yuwen:401 自定义事件，通过路由器导航到登录页
+function On401Listener() {
+  const navigate = useNavigate()
+
+  React.useEffect(() => {
+    const handler = () => {
+      const redirect = sessionStorage.getItem('yuwen_redirect') || '/login'
+      navigate(redirect, { replace: true })
+    }
+    window.addEventListener('yuwen:401', handler)
+    return () => window.removeEventListener('yuwen:401', handler)
+  }, [navigate])
+
+  return null
+}
+
 // ─── 401 路由重定向组件 ──────────────────────
 // 检测 sessionStorage 中的重定向路径，通过路由器导航到登录页
 function SessionRestore() {
@@ -70,10 +98,9 @@ function SessionRestore() {
 
 // ─── 全局错误边界 ──────────────────────────────────────────
 // 捕获渲染时的异常，显示友好提示而不是白屏
-class ErrorBoundary extends React.Component<
-  { children: ReactNode },
-  { hasError: boolean; error: Error | null }
-> {
+class ErrorBoundary extends React.Component<{ children: ReactNode }> {
+  state: { hasError: boolean; error: Error | null }
+
   constructor(props: { children: ReactNode }) {
     super(props)
     this.state = { hasError: false, error: null }
@@ -93,7 +120,11 @@ class ErrorBoundary extends React.Component<
             <button
               onClick={() => {
                 this.setState({ hasError: false, error: null })
-                window.location.href = '/login'
+                if (navigateFn) {
+                  navigateFn('/login', { replace: true })
+                } else {
+                  window.location.href = '/login'
+                }
               }}
               className="px-4 py-2 bg-tan/20 text-tan rounded-lg text-sm hover:bg-tan/30 transition-colors"
             >
@@ -134,13 +165,15 @@ root.render(
           buster: 'yuwen-v1',
         }}
       >
-          <BrowserRouter>
-            <SessionRestore />
-            <AuthProvider>
-              <GlobalRealtimeListener />
-              <App />
-            </AuthProvider>
-          </BrowserRouter>
+        <BrowserRouter>
+          <NavigateRef />
+          <SessionRestore />
+          <On401Listener />
+          <AuthProvider>
+            <GlobalRealtimeListener />
+            <App />
+          </AuthProvider>
+        </BrowserRouter>
       </PersistQueryClientProvider>
     </ErrorBoundary>
   </React.StrictMode>
