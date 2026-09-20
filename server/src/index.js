@@ -124,10 +124,7 @@ fastify.setNotFoundHandler(async (req, reply) => {
 const publicDir = path.join(ROOT, 'public')
 const fs = await import('node:fs')
 if (fs.existsSync(publicDir)) {
-  fastify.addHook('preHandler', (req, reply) => {
-  if (req.url === '/') reply.header('Cache-Control', 'no-cache, no-store, must-revalidate')
-})
-await fastify.register(fastifyStatic, {
+  await fastify.register(fastifyStatic, {
     root: publicDir,
     prefix: '/',
     // 缓存静态资源 1 小时（文件名带 hash）
