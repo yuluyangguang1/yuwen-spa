@@ -134,7 +134,7 @@ if (fs.existsSync(publicDir)) {
     // index.html 不缓存
     setHeaders: (res, path) => {
       if (typeof path === 'string' && path.endsWith('index.html')) {
-        res.header('Cache-Control', 'no-cache, no-store, must-revalidate')
+        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
       }
     },
   })
