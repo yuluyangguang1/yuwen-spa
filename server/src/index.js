@@ -136,6 +136,12 @@ if (fs.existsSync(publicDir)) {
     maxAge: '1h',
     // 设置 ETag
     etag: true,
+    // index.html 不缓存，确保用户总是拿到最新 JS bundle
+    setHeaders: (res, path) => {
+      if (path.endsWith('index.html')) {
+        res.header('Cache-Control', 'no-cache, no-store, must-revalidate')
+      }
+    },
   })
 } else {
   fastify.get('/', async (req, reply) => {
