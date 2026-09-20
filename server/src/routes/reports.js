@@ -1,15 +1,14 @@
 // 经营报表 API
 //
 // GET /api/reports/daily   — 日营收报表
-// GET /api/reports/monthly  — 月营收报表
 // GET /api/reports/tech     — 技师绩效报表
-// GET /api/reports/export   — 导出 CSV
 // GET /api/reports/summary  — 经营摘要
+// GET /api/reports/export   — 导出 CSV
 
 export async function registerReportRoutes(fastify) {
   const db = fastify.db
 
-  // ── 日营收 ────────────────────────────────────────
+  // ── 日营收 ────────────────────────────────
   fastify.get('/api/reports/daily', async (req) => {
     const { shop_id, date, days = 30 } = req.query
     const args = []
@@ -23,19 +22,20 @@ export async function registerReportRoutes(fastify) {
         COALESCE(SUM(CASE WHEN status='paid' THEN price_cents ELSE 0 END), 0) AS revenue,
         COALESCE(AVG(CASE WHEN status='paid' THEN price_cents END), 0) AS avg_revenue,
         SUM(CASE WHEN status='active' THEN 1 ELSE 0 END) AS active_count
-      FROM tickets
-      WHERE 1=1
+      FROM tickets WHERE 1=1
         ${shop_id ? 'AND shop_id=?' : ''}
-        ${date ? 'AND DATE(created_at / 1000, ?) = report_date' : `AND created_at >= ?`}
+        ${date ? "AND DATE(created_at / 1000, ?) = report_date" : 'AND created_at >= ?'}
       GROUP BY report_date
       ORDER BY report_date DESC
       LIMIT ?
     `
-    const limitArgs = shop_id ? [...args, Number(days)] : [...args, Date.now() - Number(days) * 86400000, Number(days)]
+    const limitArgs = shop_id
+      ? [...args, Number(days)]
+      : [...args, Date.now() - Number(days) * 86400000, Number(days)]
     return db.prepare(sql).all(...limitArgs)
   })
 
-  // ── 技师绩效 ──────────────────────────────────────
+  // ── 技师绩效 ──────────────────────────────
   fastify.get('/api/reports/tech', async (req) => {
     const { shop_id, technician_id, date_from, date_to, limit = 20 } = req.query
     const args = []
@@ -67,7 +67,7 @@ export async function registerReportRoutes(fastify) {
     return db.prepare(sql).all(...limitArgs)
   })
 
-  // ── 经营摘要 ──────────────────────────────────────
+  // ── 经营摘要 ──────────────────────────────
   fastify.get('/api/reports/summary', async (req) => {
     const { shop_id } = req.query
     const now = Date.now()
@@ -81,29 +81,23 @@ export async function registerReportRoutes(fastify) {
     const whereShop = shop_id ? 'AND shop_id=?' : ''
     if (shop_id) args.push(shop_id)
 
-    // 今日
     const today = db.prepare(`
-      SELECT
-        COUNT(*) AS tickets,
+      SELECT COUNT(*) AS tickets,
         COALESCE(SUM(CASE WHEN status='paid' THEN price_cents ELSE 0 END), 0) AS revenue
       FROM tickets WHERE created_at >= ? ${whereShop}
     `).get(todayStart.getTime(), ...(shop_id ? [shop_id] : []))
 
-    // 本月
     const month = db.prepare(`
-      SELECT
-        COUNT(*) AS tickets,
+      SELECT COUNT(*) AS tickets,
         COALESCE(SUM(CASE WHEN status='paid' THEN price_cents ELSE 0 END), 0) AS revenue,
         COUNT(CASE WHEN status='active' THEN 1 END) AS active_now
       FROM tickets WHERE created_at >= ? ${whereShop}
     `).get(monthStart.getTime(), ...(shop_id ? [shop_id] : []))
 
-    // 技师数
     const techCount = db.prepare(
       `SELECT COUNT(*) AS count FROM technicians WHERE active=1 ${whereShop}`
     ).get(...(shop_id ? [shop_id] : []))
 
-    // 房间数
     const roomCount = db.prepare(
       `SELECT COUNT(*) AS count FROM rooms WHERE active=1 ${whereShop}`
     ).get(...(shop_id ? [shop_id] : []))
@@ -111,14 +105,12 @@ export async function registerReportRoutes(fastify) {
     return { today, month, counts: { technicians: techCount.count, rooms: roomCount.count } }
   })
 
-  // ── 导出 CSV ──────────────────────────────────────
+  // ── 导出 CSV ──────────────────────────────
   fastify.get('/api/reports/export', async (req) => {
-    const { type = 'daily', shop_id, date_from, date_to } = req.query
-    const fastify = req.server
-    const { serialize } = await import('csv-stringify/sync')
+    const { type = 'daily', date_from } = req.query
 
-    let rows = []
-    let columns = []
+    const rows = []
+    const columns = []
     let filename = 'report'
 
     if (type === 'daily') {
@@ -129,8 +121,8 @@ export async function registerReportRoutes(fastify) {
         FROM tickets WHERE created_at >= ?
         GROUP BY date ORDER BY date DESC
       `).all(Number(date_from) || Date.now() - 30 * 86400000)
-      rows = data
-      columns = ['date', 'tickets', 'revenue']
+      rows.push(...data)
+      columns.push(...['date', 'tickets', 'revenue'])
       filename = 'daily-report'
     } else if (type === 'tech') {
       const data = db.prepare(`
@@ -139,15 +131,22 @@ export async function registerReportRoutes(fastify) {
         FROM technicians t LEFT JOIN tickets tk ON tk.technician_id=t.id AND tk.status='paid'
         WHERE t.active=1 GROUP BY t.id ORDER BY revenue DESC
       `).all()
-      rows = data
-      columns = ['name', 'tickets', 'revenue', 'commission']
+      rows.push(...data)
+      columns.push(...['name', 'tickets', 'revenue', 'commission'])
       filename = 'tech-report'
     }
 
-    const csv = serialize(rows, { columns, header: true })
-    const buf = Buffer.from(csv)
+    // 简单 CSV 生成（无外部依赖）
+    const header = columns.join(',')
+    const lines = [header]
+    for (const row of rows) {
+      const vals = columns.map((c) => String(row[c] ?? ''))
+      lines.push(vals.join(','))
+    }
+    const csv = lines.join('\n') + '\n'
+    const buf = Buffer.from(csv, 'utf-8')
 
-    fastify.reply
+    return fastify.reply
       .code(200)
       .header('Content-Type', 'text/csv; charset=utf-8')
       .header('Content-Disposition', `attachment; filename="${filename}.csv"`)
