@@ -1,32 +1,27 @@
 import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useSimpleCRUD } from '@/hooks/useCRUD'
 import { get, post, put } from '@/lib/api'
 import { Plus, X, Bell } from 'lucide-react'
 import { Field } from '@/components/Field'
 import { TechCard } from '@/components/TechCard'
 
 export default function AdminTechnicians() {
-  const qc = useQueryClient()
-  const [showForm, setShowForm] = useState(false)
-  const [editTech, setEditTech] = useState<any>(null)
-
-  const { data: technicians = [] } = useQuery({
+  const {
+    data: technicians = [],
+    showForm,
+    editItem: editTech,
+    setShowForm,
+    setEditItem: setEditTech,
+    createMut,
+    updateMut,
+  } = useSimpleCRUD({
     queryKey: ['technicians'],
     queryFn: () => get('/api/technicians'),
+    createFn: (data: any) => post('/api/technicians', data),
+    updateFn: ({ id, ...data }: any) => put(`/api/technicians/${id}`, data),
   })
+
   const shop_id = technicians[0]?.shop_id
-
-  const invalidate = () => qc.invalidateQueries({ queryKey: ['technicians'] })
-
-  const createMut = useMutation({
-    mutationFn: (data: any) => post('/api/technicians', data),
-    onSuccess: () => { invalidate(); setShowForm(false) },
-  })
-
-  const updateMut = useMutation({
-    mutationFn: ({ id, ...data }: any) => put(`/api/technicians/${id}`, data),
-    onSuccess: () => { invalidate(); setEditTech(null) },
-  })
 
   return (
     <div className="p-4 md:p-6 space-y-4">
@@ -120,11 +115,6 @@ function TechForm({ title, initial, shop_id, onSubmit, onClose, error, loading }
           <div className="grid grid-cols-2 gap-3">
             <Field label="电话" value={f.phone} onChange={v => setF({ ...f, phone: v })} />
             <Field label="从业年限" type="number" value={f.years} onChange={v => setF({ ...f, years: v })} />
-          </div>
-          <div>
-            <label className="block text-xs text-white/40 mb-1">简介</label>
-            <textarea value={f.bio} onChange={e => setF({ ...f, bio: e.target.value })} rows={2}
-              className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm text-white placeholder-white/20 focus:outline-none focus:border-tan/50 resize-none" />
           </div>
           <div>
             <label className="block text-xs text-white/40 mb-1 flex items-center gap-1">

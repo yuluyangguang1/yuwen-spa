@@ -363,8 +363,8 @@ function seedIfEmpty(db) {
       INSERT INTO users(id, shop_id, username, password_hash, role, display_name, created_at, updated_at)
       VALUES(?, ?, ?, ?, ?, ?, ?, ?)
     `)
-    insertUser.run(nanoid(10), shopId, 'admin', hashPassword('admin'), 'admin', '管理员', now, now)
-    insertUser.run(nanoid(10), shopId, 'pos',    hashPassword('pos'),    'pos',    '收银台', now, now)
+    insertUser.run(nanoid(10), shopId, 'admin', hashPassword('admin1234'), 'admin', '管理员', now, now)
+    insertUser.run(nanoid(10), shopId, 'pos',    hashPassword('pos12345'),    'pos',    '收银台', now, now)
 
     db.prepare(`INSERT INTO meta(key, value) VALUES('seeded_at', ?)`).run(String(now))
   })()

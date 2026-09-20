@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useSimpleCRUD } from '@/hooks/useCRUD'
 import { get, post, put, del } from '@/lib/api'
 import { formatMoney } from '@/lib/utils'
 import { Plus, Edit2, Trash2, X } from 'lucide-react'
@@ -7,44 +7,25 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Field } from '@/components/Field'
 
 export default function AdminServices() {
-  const qc = useQueryClient()
-  const [showForm, setShowForm] = useState(false)
-  const [editItem, setEditItem] = useState<any>(null)
-  const [confirmState, setConfirmState] = useState<{
-    open: boolean
-    onConfirm: () => void
-    message: string
-  }>({ open: false, onConfirm: () => {}, message: '' })
-
-  const { data: services = [] } = useQuery({
+  const {
+    data: services = [],
+    showForm,
+    editItem,
+    setShowForm,
+    setEditItem,
+    confirmState,
+    createMut,
+    updateMut,
+    deleteMut,
+    requestDelete,
+    closeConfirm,
+  } = useSimpleCRUD({
     queryKey: ['services'],
     queryFn: () => get('/api/services'),
+    createFn: (data: any) => post('/api/services', data),
+    updateFn: ({ id, ...data }: any) => put(`/api/services/${id}`, data),
+    deleteFn: (id: string) => del(`/api/services/${id}`),
   })
-
-  const invalidate = () => qc.invalidateQueries({ queryKey: ['services'] })
-
-  const createMut = useMutation({
-    mutationFn: (data: any) => post('/api/services', data),
-    onSuccess: () => { invalidate(); setShowForm(false) },
-  })
-
-  const updateMut = useMutation({
-    mutationFn: ({ id, ...data }: any) => put(`/api/services/${id}`, data),
-    onSuccess: () => { invalidate(); setEditItem(null) },
-  })
-
-  const deleteMut = useMutation({
-    mutationFn: (id: string) => del(`/api/services/${id}`),
-    onSuccess: invalidate,
-  })
-
-  const handleDelete = (s: any) => {
-    setConfirmState({
-      open: true,
-      message: `停用「${s.name}」？`,
-      onConfirm: () => { deleteMut.mutate(s.id); setConfirmState({ open: false, onConfirm: () => {}, message: '' }) },
-    })
-  }
 
   return (
     <div className="p-4 md:p-6 space-y-4">
@@ -88,7 +69,7 @@ export default function AdminServices() {
                 <td className="p-3 text-center">
                   <div className="flex items-center justify-center gap-1">
                     <button onClick={() => setEditItem(s)} className="p-1.5 text-white/30 hover:text-tan rounded"><Edit2 size={14} /></button>
-                    <button onClick={() => handleDelete(s)} className="p-1.5 text-white/30 hover:text-red-400 rounded"><Trash2 size={14} /></button>
+                    <button onClick={() => requestDelete(`停用「${s.name}」？`, () => deleteMut.mutate(s.id))} className="p-1.5 text-white/30 hover:text-red-400 rounded"><Trash2 size={14} /></button>
                   </div>
                 </td>
               </tr>
@@ -110,8 +91,8 @@ export default function AdminServices() {
         title="停用服务"
         message={confirmState.message}
         variant="danger"
-        onConfirm={confirmState.onConfirm}
-        onCancel={() => setConfirmState({ open: false, onConfirm: () => {}, message: '' })}
+        onConfirm={() => { confirmState.onConfirm(); closeConfirm() }}
+        onCancel={closeConfirm}
       />
     </div>
   )
@@ -126,7 +107,7 @@ function ServiceForm({ title, initial, shop_id, onSubmit, onClose, error, loadin
     duration: initial?.duration || 60,
     price_yuan: initial ? (initial.price_cents / 100).toString() : '',
     commission_type: initial?.commission_type || 'percent',
-    commission_value: initial ? (initial.commission_type === 'percent' ? (initial.commission_value / 100).toString() : String(initial.commission_value)) : '20',
+    commission_value: initial ? (initial.commission_type === 'percent' ? (initial.commission_value / 100).toString() : String(initial.commission_value / 100)) : '20',
   })
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -138,9 +119,7 @@ function ServiceForm({ title, initial, shop_id, onSubmit, onClose, error, loadin
       duration: Number(f.duration),
       price_cents: Math.round(Number(f.price_yuan) * 100),
       commission_type: f.commission_type,
-      commission_value: f.commission_type === 'percent'
-        ? Math.round(Number(f.commission_value) * 100)
-        : Math.round(Number(f.commission_value)),
+      commission_value: Math.round(Number(f.commission_value) * 100),
     })
   }
 

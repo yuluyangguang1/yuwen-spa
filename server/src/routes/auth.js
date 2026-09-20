@@ -23,11 +23,9 @@ export async function registerAuthRoutes(fastify) {
       return reply.code(400).send({ error: '请输入用户名和密码' })
     }
 
-    // 验证密码复杂度
-    const pwdErr = validatePassword(password)
-    if (pwdErr) {
-      return reply.code(400).send({ error: pwdErr })
-    }
+    // 验证密码复杂度（仅在修改密码时校验，登录时不限制）
+    // const pwdErr = validatePassword(password)
+    // if (pwdErr) return reply.code(400).send({ error: pwdErr })
 
     const user = fastify.db.prepare(
       `SELECT * FROM users WHERE username = ? AND active = 1`
