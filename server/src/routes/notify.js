@@ -10,7 +10,7 @@ import { getNotifyConfig, saveNotifyConfig, testWebhook, getChannelStatus } from
 export async function registerNotifyRoutes(fastify) {
   // 获取通知配置
   fastify.get('/api/notify/config', async (req, reply) => {
-    if (req.user?.role !== 'admin') return reply.code(403).send({ error: '仅管理员' })
+    if (!req.user || req.user.role !== 'admin') return reply.code(403).send({ error: '仅管理员' })
     const config = getNotifyConfig()
     return {
       channels: config.channels || {},
@@ -20,7 +20,7 @@ export async function registerNotifyRoutes(fastify) {
 
   // 保存通知配置（多渠道）
   fastify.post('/api/notify/config', async (req, reply) => {
-    if (req.user?.role !== 'admin') return reply.code(403).send({ error: '仅管理员' })
+    if (!req.user || req.user.role !== 'admin') return reply.code(403).send({ error: '仅管理员' })
     const { channels } = req.body || {}
     const config = getNotifyConfig()
     if (channels) {
@@ -39,7 +39,7 @@ export async function registerNotifyRoutes(fastify) {
 
   // 测试所有启用的 webhook
   fastify.post('/api/notify/test', async (req, reply) => {
-    if (req.user?.role !== 'admin') return reply.code(403).send({ error: '仅管理员' })
+    if (!req.user || req.user.role !== 'admin') return reply.code(403).send({ error: '仅管理员' })
     try {
       const results = await testWebhook()
       return { ok: true, message: '测试发送完成，请检查各平台消息' }
@@ -50,7 +50,7 @@ export async function registerNotifyRoutes(fastify) {
 
   // 获取各渠道状态
   fastify.get('/api/notify/channels', async (req, reply) => {
-    if (req.user?.role !== 'admin') return reply.code(403).send({ error: '仅管理员' })
+    if (!req.user || req.user.role !== 'admin') return reply.code(403).send({ error: '仅管理员' })
     return { channels: getChannelStatus() }
   })
 }

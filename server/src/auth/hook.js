@@ -31,6 +31,14 @@ export async function registerAuthHook(fastify) {
     // 白名单放行
     if (isPublic(req.url.split('?')[0])) return
 
+    // POST /api/reviews 需要鉴权（顾客评价需验证身份）
+    if (req.url.startsWith('/api/reviews') && req.method === 'POST') {
+      const payload = extractToken(req)
+      if (!payload) return reply.code(401).send({ error: '请先登录' })
+      req.user = payload
+      return
+    }
+
     const payload = extractToken(req)
     if (!payload) {
       return reply.code(401).send({ error: '请先登录' })

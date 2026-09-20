@@ -127,7 +127,7 @@ export async function registerReportRoutes(fastify) {
     } else if (type === 'tech') {
       const data = db.prepare(`
         SELECT t.name, COUNT(tk.id) AS tickets,
-          SUM(tk.price_cents) AS revenue, SUM(tk.commission) AS commission
+          SUM(tk.price_cents) AS revenue, SUM(tk.commission_cents) AS commission
         FROM technicians t LEFT JOIN tickets tk ON tk.technician_id=t.id AND tk.status='paid'
         WHERE t.active=1 GROUP BY t.id ORDER BY revenue DESC
       `).all()
