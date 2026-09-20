@@ -5,22 +5,124 @@
 @layer base {
   * {
     -webkit-tap-highlight-color: transparent;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
   body {
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    text-rendering: optimizeLegibility;
   }
   /* 宣纸纹理背景（极淡） */
   .bg-paper-texture {
     background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23n)' opacity='0.02'/%3E%3C/svg%3E");
   }
+  /* 自定义滚动条 */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-white/10 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-white/20;
+  }
 }
 
 @layer components {
-  /* 玻璃卡片（Liquid Glass 风格） */
+  /* 玻璃卡片（Liquid Glass 增强版） */
   .glass-card {
-    @apply rounded-xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-lg;
+    @apply rounded-xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-lg transition-all duration-200;
+  }
+  .glass-card:hover {
+    @apply border-white/20 bg-white/[0.06];
   }
   .dark .glass-card {
     @apply border-white/5 bg-white/[0.03];
   }
+  .dark .glass-card:hover {
+    @apply border-white/10 bg-white/[0.06];
+  }
+
+  /* 按钮变体 */
+  .btn-primary {
+    @apply bg-tan hover:bg-tan-dark text-white font-medium px-4 py-2.5 rounded-xl transition-all duration-200 active:scale-[0.97] shadow-lg shadow-tan/20;
+  }
+  .btn-secondary {
+    @apply bg-white/5 hover:bg-white/10 text-white/70 font-medium px-4 py-2.5 rounded-xl transition-all duration-200 active:scale-[0.97] border border-white/10;
+  }
+  .btn-danger {
+    @apply bg-cinnabar/20 hover:bg-cinnabar/30 text-cinnabar font-medium px-4 py-2.5 rounded-xl transition-all duration-200 active:scale-[0.97];
+  }
+
+  /* 状态指示器脉冲 */
+  .status-pulse {
+    @apply relative;
+  }
+  .status-pulse::after {
+    content: '';
+    @apply absolute inset-0 rounded-full animate-ping;
+    opacity: 0.3;
+  }
+
+  /* 数字跳动动画 */
+  .num-animate {
+    transition: all 0.3s ease;
+  }
+
+  /* 移动端安全区域 */
+  .safe-area-pb {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* 触屏友好的点击区域（最小 44x44pt） */
+  .touch-target {
+    @apply min-h-[44px] min-w-[44px] flex items-center justify-center;
+  }
+
+  /* 排钟房间卡片动画 */
+  .room-card {
+    @apply transition-all duration-300;
+  }
+  .room-card.occupied {
+    @apply border-tan/30 bg-tan/5 animate-in fade-in slide-in-from-bottom-2;
+  }
+
+  /* 骨架屏加载 */
+  .skeleton {
+    @apply bg-white/5 rounded-lg animate-pulse;
+  }
+
+  /* 通知横幅 */
+  .toast {
+    @apply fixed bottom-4 left-1/2 -translate-x-1/2 z-50 px-4 py-3 rounded-xl bg-tan/90 text-white text-sm font-medium shadow-xl backdrop-blur-sm;
+    animation: slideUp 0.3s ease-out, fadeOut 0.3s ease-in 2.5s forwards;
+  }
+  @keyframes slideUp {
+    from { opacity: 0; transform: translate(-50%, 20px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+  }
+  @keyframes fadeOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+}
+
+@layer utilities {
+  /* 中国风色彩工具类 */
+  .text-tan { color: #a0826d; }
+  .text-moss { color: #5a7a5a; }
+  .text-gold { color: #b8860b; }
+  .text-cinnabar { color: #8b3a3a; }
+  .bg-tan { background-color: rgba(160, 130, 109, 0.1); }
+  .bg-tan\/20 { background-color: rgba(160, 130, 109, 0.2); }
+  .bg-tan\/5 { background-color: rgba(160, 130, 109, 0.05); }
+  .bg-moss { background-color: rgba(90, 122, 90, 0.1); }
+  .bg-cinnabar { background-color: rgba(139, 58, 58, 0.1); }
+  .bg-gold { background-color: rgba(184, 134, 11, 0.1); }
+  .border-tan\/20 { border-color: rgba(160, 130, 109, 0.2); }
+  .border-tan\/30 { border-color: rgba(160, 130, 109, 0.3); }
 }

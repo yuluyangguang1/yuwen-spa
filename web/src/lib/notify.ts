@@ -41,7 +41,7 @@ function vibrate() {
 }
 
 // 显示通知（页面内 toast 由调用方处理，这里只负责声+震）
-export function notifyNewTicket(ticketInfo?: { service_name?: string; room_number?: string }) {
+export function notifyNewTicket() {
   playDing()
   vibrate()
 }

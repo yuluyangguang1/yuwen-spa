@@ -14,7 +14,6 @@ import TechProfile from '@/components/TechProfile'
 // 2. 房间使用中 → 显示当前服务进度 + 加钟按钮
 export default function GuestView() {
   const { roomId } = useParams()
-  const queryClient = useQueryClient()
 
   const { data: room } = useQuery({
     queryKey: ['room', roomId],

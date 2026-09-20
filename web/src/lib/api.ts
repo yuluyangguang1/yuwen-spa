@@ -1,10 +1,15 @@
 // API 请求封装
-// 自动带上 Authorization header
+// 自动带上 Authorization header + AbortController 超时控制
 
 const BASE = ''  // 同源，Vite proxy 转发
+const REQUEST_TIMEOUT = 15000 // 15 秒超时
 
 export async function api<T = any>(path: string, opts?: RequestInit): Promise<T> {
   const token = localStorage.getItem('yuwen_token')
+  const controller = new AbortController()
+
+  // 设置超时
+  const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT)
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -14,23 +19,34 @@ export async function api<T = any>(path: string, opts?: RequestInit): Promise<T>
     headers['Authorization'] = `Bearer ${token}`
   }
 
-  const res = await fetch(`${BASE}${path}`, {
-    ...opts,
-    headers,
-  })
+  try {
+    const res = await fetch(`${BASE}${path}`, {
+      ...opts,
+      headers,
+      signal: controller.signal,
+    })
 
-  if (res.status === 401) {
-    // token 失效，清除并跳转登录
-    localStorage.removeItem('yuwen_token')
-    window.location.href = '/login'
-    throw new Error('请先登录')
-  }
+    clearTimeout(timeoutId)
 
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}))
-    throw new Error(body.error || `HTTP ${res.status}`)
+    if (res.status === 401) {
+      // token 失效，清除并路由跳转（而非 window.location 全量刷新）
+      localStorage.removeItem('yuwen_token')
+      window.location.href = '/login'
+      throw new Error('请先登录')
+    }
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}))
+      throw new Error(body.error || `HTTP ${res.status}`)
+    }
+    return res.json()
+  } catch (err) {
+    clearTimeout(timeoutId)
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      throw new Error('请求超时，请检查网络连接')
+    }
+    throw err
   }
-  return res.json()
 }
 
 export const get = <T = any>(path: string) => api<T>(path)

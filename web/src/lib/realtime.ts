@@ -2,7 +2,7 @@
 //
 // 自动重连，事件回调。
 
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef } from 'react'
 
 type EventHandler = (data: any) => void
 

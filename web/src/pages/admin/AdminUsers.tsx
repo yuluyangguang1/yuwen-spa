@@ -4,7 +4,7 @@
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { get, post, put, del } from '@/lib/api'
+import { get, post, put } from '@/lib/api'
 import { Plus, Key, Ban, CheckCircle, Edit2, X } from 'lucide-react'
 
 const ROLE_LABELS: Record<string, string> = {
@@ -48,12 +48,6 @@ export default function AdminUsers() {
   // 禁用/启用
   const toggleMut = useMutation({
     mutationFn: ({ id, active }: any) => put(`/api/users/${id}`, { active }),
-    onSuccess: invalidate,
-  })
-
-  // 删除
-  const deleteMut = useMutation({
-    mutationFn: (id: string) => del(`/api/users/${id}`),
     onSuccess: invalidate,
   })
 

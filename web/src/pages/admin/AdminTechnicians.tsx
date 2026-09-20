@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { get, post, put } from '@/lib/api'
 import { statusLabel } from '@/lib/utils'
-import { Plus, Edit2, X, Bell } from 'lucide-react'
+import { Plus, X, Bell } from 'lucide-react'
 
 export default function AdminTechnicians() {
   const qc = useQueryClient()

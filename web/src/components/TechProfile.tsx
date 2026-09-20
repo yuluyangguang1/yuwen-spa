@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { get } from '@/lib/api'
-import { Star, X, Award, Clock, ThumbsUp } from 'lucide-react'
+import { Star, X, Award } from 'lucide-react'
 
 // 技师个人简介弹窗（顾客端点击技师后展示）
 export default function TechProfile({ techId, onClose, onSelect }: {

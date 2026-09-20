@@ -4,7 +4,6 @@ import { get, post } from '@/lib/api'
 import { Bell, Send, CheckCircle, XCircle } from 'lucide-react'
 
 export default function AdminSettings() {
-  const qc = useQueryClient()
   const { data: shop } = useQuery({
     queryKey: ['shop'],
     queryFn: () => get('/api/shops/current'),

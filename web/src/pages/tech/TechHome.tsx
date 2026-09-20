@@ -4,7 +4,7 @@ import { formatMoney, formatElapsed } from '@/lib/utils'
 import { useRealtime } from '@/lib/realtime'
 import { notifyNewTicket, warmupAudio } from '@/lib/notify'
 import { useAuth } from '@/lib/auth'
-import { DollarSign, Clock, Bell } from 'lucide-react'
+import { Clock, Bell } from 'lucide-react'
 import { useState, useEffect, useCallback } from 'react'
 
 // 技师端首页：当前排钟 + 今日业绩 + 实时通知
@@ -32,7 +32,7 @@ export default function TechHome() {
       if (data.technician_id === currentTech?.id) {
         const msg = `新派钟：${data.service_name || '服务'}${data.room_number ? ` · ${data.room_number}号房` : ''}`
         showToast(msg)
-        notifyNewTicket(data)
+        notifyNewTicket()
       }
       qc.invalidateQueries({ queryKey: ['tickets-today'] })
     },

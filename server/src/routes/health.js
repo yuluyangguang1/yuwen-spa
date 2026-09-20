@@ -2,19 +2,7 @@
 // 用途：浏览器/前端心跳；运维快速判断服务是否在跑。
 
 import os from 'node:os'
-
-function getLanIPs() {
-  const ifs = os.networkInterfaces()
-  const ips = []
-  for (const name of Object.keys(ifs)) {
-    for (const iface of ifs[name] || []) {
-      if (iface.family === 'IPv4' && !iface.internal) {
-        ips.push(iface.address)
-      }
-    }
-  }
-  return ips
-}
+import { getLanIPs } from '../lib/network.js'
 
 export async function registerHealthRoutes(fastify) {
   fastify.get('/api/health', async () => ({
@@ -24,7 +12,7 @@ export async function registerHealthRoutes(fastify) {
     version: '0.1.0',
   }))
 
-  fastify.get('/api/system', async () => ({
+  fastify.get('/api/system', async (req) => ({
     ok: true,
     hostname: os.hostname(),
     platform: process.platform,
@@ -37,6 +25,6 @@ export async function registerHealthRoutes(fastify) {
     cpu: os.cpus().length,
     uptime: os.uptime(),
     lanIPs: getLanIPs(),
-    port: fastify.server.address()?.port || PORT_START,
+    port: fastify.server.address()?.port || fastify.port,
   }))
 }

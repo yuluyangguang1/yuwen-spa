@@ -13,6 +13,7 @@ const PUBLIC_PATHS = [
   '/api/health',
   '/api/system',
   '/api/auth/login',
+  '/api/realtime',   // WebSocket 排钟同步，无需 token
 ]
 
 function isPublic(path) {
