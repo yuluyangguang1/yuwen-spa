@@ -123,11 +123,17 @@
     @apply transition-all duration-300;
   }
   .room-card.occupied {
-    @apply border-tan/30 bg-tan/5 animate-in fade-in slide-in-from-bottom-2;
+    @apply border-tan/30 bg-tan/5;
+    animation: fadeSlideIn 0.4s ease-out;
   }
 
-  /* 骨架屏加载（统一颜色 + 光泽动画） */
-  .skeleton {
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 骨架屏加载（统一颜色 + 光泽动画） */
+.skeleton {
     @apply bg-white/5 rounded-lg;
     animation: skeleton-pulse 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
     position: relative;
