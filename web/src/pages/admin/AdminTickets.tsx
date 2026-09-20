@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { get } from '@/lib/api'
 import { formatMoney, statusLabel, statusColor } from '@/lib/utils'
 import { Download, Filter } from 'lucide-react'
+import { TableSkeleton } from '@/components/LoadingSkeleton'
 
 function today() { return new Date().toISOString().slice(0, 10) }
 function daysAgo(n: number) { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10) }
@@ -21,10 +22,24 @@ export default function AdminTickets() {
   const fromTs = new Date(dateFrom).getTime()
   const toTs = new Date(dateTo).getTime() + 86400000
 
-  const { data: tickets = [] } = useQuery({
+  const { data: tickets = [], isLoading } = useQuery({
     queryKey: ['tickets-all', dateFrom, dateTo, status, techId],
     queryFn: () => get(`/api/tickets?limit=500&date_from=${fromTs}&date_to=${toTs}${status ? `&status=${status}` : ''}${techId ? `&technician_id=${techId}` : ''}`),
   })
+
+  if (isLoading) {
+    return (
+      <div className="p-4 md:p-6 space-y-4">
+        <div className="h-8 bg-[#2a2a29] animate-pulse rounded-lg w-48" />
+        <div className="glass-card p-3 flex flex-wrap items-center gap-3">
+          <div className="h-6 w-32 animate-pulse bg-[#2a2a29] rounded" />
+          <div className="h-6 w-24 animate-pulse bg-[#2a2a29] rounded" />
+          <div className="h-6 w-24 animate-pulse bg-[#2a2a29] rounded" />
+        </div>
+        <TableSkeleton rows={8} />
+      </div>
+    )
+  }
 
   // 统计
   const stats = useMemo(() => {

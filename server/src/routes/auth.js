@@ -4,7 +4,7 @@
 // GET  /api/auth/me             (需 Authorization: Bearer xxx) → { user }
 // PUT  /api/auth/password       { oldPassword, newPassword } → { ok }
 
-import { verifyPassword, createToken, verifyToken, hashPassword } from '../auth/utils.js'
+import { verifyPassword, createToken, verifyToken, hashPassword, validatePassword } from '../auth/utils.js'
 import { checkRateLimit } from '../auth/ratelimit.js'
 
 export async function registerAuthRoutes(fastify) {
@@ -21,6 +21,12 @@ export async function registerAuthRoutes(fastify) {
 
     if (!username || !password) {
       return reply.code(400).send({ error: '请输入用户名和密码' })
+    }
+
+    // 验证密码复杂度
+    const pwdErr = validatePassword(password)
+    if (pwdErr) {
+      return reply.code(400).send({ error: pwdErr })
     }
 
     const user = fastify.db.prepare(

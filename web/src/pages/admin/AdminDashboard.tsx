@@ -7,6 +7,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { get } from '@/lib/api'
 import { useRealtime } from '@/lib/realtime'
 import { formatMoney, formatElapsed, statusLabel } from '@/lib/utils'
+import { StatsSkeleton, TableSkeleton } from '@/components/LoadingSkeleton'
 
 export default function AdminDashboard() {
   const qc = useQueryClient()
@@ -19,11 +20,23 @@ export default function AdminDashboard() {
     'technician:updated': () => qc.invalidateQueries({ queryKey: ['live'] }),
   })
 
-  const { data } = useQuery({
+  const { data, isLoading } = useQuery({
     queryKey: ['live'],
     queryFn: () => get('/api/dashboard/live'),
     refetchInterval: 10000,
   })
+
+  if (isLoading) {
+    return (
+      <div className="p-4 md:p-6 space-y-5">
+        <StatsSkeleton />
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+          <TableSkeleton rows={4} />
+        </div>
+        <TableSkeleton rows={6} />
+      </div>
+    )
+  }
 
   const techs = data?.techs || []
   const rooms = data?.rooms || []

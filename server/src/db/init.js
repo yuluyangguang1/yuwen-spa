@@ -242,6 +242,16 @@ CREATE TABLE IF NOT EXISTS ai_chats (
   content     TEXT NOT NULL,
   created_at  INTEGER NOT NULL
 );
+
+CREATE INDEX IF NOT EXISTS idx_services_shop ON services(shop_id);
+CREATE INDEX IF NOT EXISTS idx_rooms_shop ON rooms(shop_id);
+CREATE INDEX IF NOT EXISTS idx_technicians_shop ON technicians(shop_id);
+CREATE INDEX IF NOT EXISTS idx_customers_shop ON customers(shop_id);
+CREATE INDEX IF NOT EXISTS idx_ai_chats_shop_created ON ai_chats(shop_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_reviews_ticket ON reviews(ticket_id);
+CREATE INDEX IF NOT EXISTS idx_wallet_shop_type ON wallet_transactions(shop_id, type);
+CREATE INDEX IF NOT EXISTS idx_ai_scores_tech ON ai_scores(technician_id);
+CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs(action);
 `
 
 // ── 迁移系统 ──────────────────────────────────────

@@ -29,8 +29,9 @@ export async function api<T = any>(path: string, opts?: RequestInit): Promise<T>
     clearTimeout(timeoutId)
 
     if (res.status === 401) {
-      // token 失效，清除并路由跳转（而非 window.location 全量刷新）
+      // token 失效，清除并路由跳转（而非全量刷新）
       localStorage.removeItem('yuwen_token')
+      sessionStorage.setItem('yuwen_redirect', window.location.pathname + window.location.search)
       window.location.href = '/login'
       throw new Error('请先登录')
     }

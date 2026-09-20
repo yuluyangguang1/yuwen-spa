@@ -3,29 +3,70 @@
 // 优化要点：
 //   1. React.ErrorBoundary：捕获渲染异常，防止白屏
 //   2. 全局 Toast 通知系统（Web Audio + 页面内提示）
-//   3. StrictMode 保持开发期双渲染检测
+//   3. Query 缓存持久化：PersistQueryClientProvider + localStorage 持久化
+//   4. 401 优雅跳转：SPA 路由导航而非全量刷新
 
 import React, { type ReactNode } from 'react'
 import ReactDOM from 'react-dom/client'
-import { BrowserRouter } from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { BrowserRouter, useNavigate } from 'react-router-dom'
+import { QueryClient } from '@tanstack/react-query'
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
+import type { PersistedClient, Persister } from '@tanstack/query-persist-client-core'
 import { AuthProvider } from './lib/auth'
 import { useRealtime } from './lib/realtime'
 import { warmupAudio } from './lib/notify'
 import App from './App'
 import './index.css'
 
+// ─── localStorage 持久化器 ──────────────────
+const localStoragePersister: Persister = {
+  persistClient: async (client: PersistedClient) => {
+    try {
+      localStorage.setItem('yuwen-query-cache', JSON.stringify(client))
+    } catch (_) {}
+  },
+  restoreClient: async () => {
+    try {
+      const raw = localStorage.getItem('yuwen-query-cache')
+      return raw ? (JSON.parse(raw) as PersistedClient) : undefined
+    } catch (_) {
+      return undefined
+    }
+  },
+  removeClient: async () => {
+    try {
+      localStorage.removeItem('yuwen-query-cache')
+    } catch (_) {}
+  },
+}
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 5000,
       refetchOnWindowFocus: true,
-      // 失败重试 2 次，避免网络抖动导致白屏
       retry: 2,
       retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
+      gcTime: 30 * 60 * 1000,
     },
   },
 })
+
+// ─── 401 路由重定向组件 ──────────────────────
+// 检测 sessionStorage 中的重定向路径，通过路由器导航到登录页
+function SessionRestore() {
+  const navigate = useNavigate()
+
+  React.useEffect(() => {
+    const redirect = sessionStorage.getItem('yuwen_redirect')
+    if (redirect) {
+      sessionStorage.removeItem('yuwen_redirect')
+      navigate('/login', { replace: true })
+    }
+  }, [navigate])
+
+  return null
+}
 
 // ─── 全局错误边界 ──────────────────────────────────────────
 // 捕获渲染时的异常，显示友好提示而不是白屏
@@ -52,7 +93,7 @@ class ErrorBoundary extends React.Component<
             <button
               onClick={() => {
                 this.setState({ hasError: false, error: null })
-                window.location.reload()
+                window.location.href = '/login'
               }}
               className="px-4 py-2 bg-tan/20 text-tan rounded-lg text-sm hover:bg-tan/30 transition-colors"
             >
@@ -70,16 +111,13 @@ class ErrorBoundary extends React.Component<
 function GlobalRealtimeListener() {
   useRealtime({
     'ticket:created': () => {
-      // 新派钟：声音 + 震动提醒
       warmupAudio()
-      // 可以在此扩展 toast 通知
     },
   })
   return null
 }
 
 // ─── 启动 ──────────────────────────────────────────────
-// 登录后预加载音频上下文（移动端需要用户交互后才能播放声音）
 if (localStorage.getItem('yuwen_token')) {
   warmupAudio()
 }
@@ -88,14 +126,22 @@ const root = ReactDOM.createRoot(document.getElementById('root')!)
 root.render(
   <React.StrictMode>
     <ErrorBoundary>
-      <QueryClientProvider client={queryClient}>
-        <BrowserRouter>
-          <AuthProvider>
-            <GlobalRealtimeListener />
-            <App />
-          </AuthProvider>
-        </BrowserRouter>
-      </QueryClientProvider>
+      <PersistQueryClientProvider
+        client={queryClient}
+        persistOptions={{
+          persister: localStoragePersister,
+          maxAge: 5 * 60 * 1000,
+          buster: 'yuwen-v1',
+        }}
+      >
+          <BrowserRouter>
+            <SessionRestore />
+            <AuthProvider>
+              <GlobalRealtimeListener />
+              <App />
+            </AuthProvider>
+          </BrowserRouter>
+      </PersistQueryClientProvider>
     </ErrorBoundary>
   </React.StrictMode>
 )

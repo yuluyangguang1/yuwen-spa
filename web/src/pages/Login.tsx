@@ -5,6 +5,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { LogIn } from 'lucide-react'
+import { Skeleton } from '@/components/LoadingSkeleton'
 
 export default function Login() {
   const { login, user } = useAuth()
@@ -80,7 +81,11 @@ export default function Login() {
             disabled={loading || !username || !password}
             className="w-full flex items-center justify-center gap-2 bg-tan/20 hover:bg-tan/30 disabled:opacity-30 disabled:cursor-not-allowed text-tan border border-tan/30 rounded-lg py-2.5 text-sm font-medium transition-colors"
           >
-            <LogIn size={16} />
+            {loading ? (
+              <Skeleton className="h-5 w-5 rounded-full" />
+            ) : (
+              <LogIn size={16} />
+            )}
             {loading ? '登录中...' : '登录'}
           </button>
         </form>

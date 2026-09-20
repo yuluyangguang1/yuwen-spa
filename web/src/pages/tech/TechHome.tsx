@@ -6,6 +6,7 @@ import { notifyNewTicket, warmupAudio } from '@/lib/notify'
 import { useAuth } from '@/lib/auth'
 import { Clock, Bell } from 'lucide-react'
 import { useState, useEffect, useCallback } from 'react'
+import { TableSkeleton } from '@/components/LoadingSkeleton'
 
 // 技师端首页：当前排钟 + 今日业绩 + 实时通知
 export default function TechHome() {
@@ -19,6 +20,16 @@ export default function TechHome() {
     document.addEventListener('touchstart', warmup, { once: true })
     document.addEventListener('click', warmup, { once: true })
   }, [])
+
+  const { data: technicians = [], isLoading: techsLoading } = useQuery({
+    queryKey: ['technicians'],
+    queryFn: () => get('/api/technicians'),
+  })
+
+  // 根据登录用户关联技师（admin 登录 tech 端时用第一个技师）
+  const currentTech = user?.technician_id
+    ? technicians.find((t: any) => t.id === user.technician_id)
+    : technicians[0]
 
   // WebSocket 实时事件
   const showToast = useCallback((msg: string) => {
@@ -45,21 +56,30 @@ export default function TechHome() {
     },
   })
 
-  const { data: technicians = [] } = useQuery({
-    queryKey: ['technicians'],
-    queryFn: () => get('/api/technicians'),
-  })
-
-  // 根据登录用户关联技师（admin 登录 tech 端时用第一个技师）
-  const currentTech = user?.technician_id
-    ? technicians.find((t: any) => t.id === user.technician_id)
-    : technicians[0]
-
-  const { data: tickets = [] } = useQuery({
+  const { data: tickets = [], isLoading: ticketsLoading } = useQuery({
     queryKey: ['tickets-today'],
     queryFn: () => get('/api/tickets/today'),
     refetchInterval: 10000, // 有 WebSocket 后降为 10s 兜底
   })
+
+  const isLoading = techsLoading || ticketsLoading
+
+  if (isLoading) {
+    return (
+      <div className="p-4 space-y-4">
+        <div className="h-14 animate-pulse bg-[#2a2a29] rounded-lg w-32" />
+        <div className="grid grid-cols-3 gap-2">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="glass-card p-3 space-y-2">
+              <div className="h-3 w-1/2 animate-pulse bg-[#2a2a29] rounded" />
+              <div className="h-7 w-3/4 animate-pulse bg-[#2a2a29] rounded" />
+            </div>
+          ))}
+        </div>
+        <TableSkeleton rows={4} />
+      </div>
+    )
+  }
 
   if (!currentTech) return <div className="p-4 text-white/40">加载中...</div>
 

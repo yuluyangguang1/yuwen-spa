@@ -2,15 +2,16 @@ import { useQuery } from '@tanstack/react-query'
 import { get } from '@/lib/api'
 import { formatElapsed, statusLabel } from '@/lib/utils'
 import { Activity, Users } from 'lucide-react'
+import { RoomCardSkeleton } from '@/components/LoadingSkeleton'
 
 // 收银台首屏：今日台面一览（房间 + 正在进行的钟）
 export default function PosHome() {
-  const { data: tickets = [] } = useQuery({
+  const { data: tickets = [], isLoading: ticketsLoading } = useQuery({
     queryKey: ['tickets-today'],
     queryFn: () => get('/api/tickets/today'),
     refetchInterval: 5000,
   })
-  const { data: rooms = [] } = useQuery({
+  const { data: rooms = [], isLoading: roomsLoading } = useQuery({
     queryKey: ['rooms'],
     queryFn: () => get('/api/rooms'),
   })
@@ -18,6 +19,24 @@ export default function PosHome() {
     queryKey: ['technicians'],
     queryFn: () => get('/api/technicians'),
   })
+
+  const isLoading = ticketsLoading || roomsLoading
+
+  if (isLoading) {
+    return (
+      <div className="p-4 space-y-4">
+        <div className="flex gap-3">
+          <div className="h-10 w-48 animate-pulse bg-[#2a2a29] rounded-lg" />
+          <div className="h-10 w-48 animate-pulse bg-[#2a2a29] rounded-lg" />
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <RoomCardSkeleton key={i} />
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   const activeTickets = tickets.filter((t: any) => t.status === 'active')
   const busyTechs = technicians.filter((t: any) => t.status === 'working')

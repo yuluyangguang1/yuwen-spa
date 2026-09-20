@@ -5,11 +5,22 @@
 
 import crypto from 'node:crypto'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'yuwen-spa-default-secret-change-me'
+const JWT_SECRET = process.env.JWT_SECRET
+if (!JWT_SECRET) throw new Error('JWT_SECRET is not set in environment variables')
 const TOKEN_EXPIRY = 7 * 24 * 60 * 60 * 1000  // 7 天
 
-// ── 密码哈希 ──────────────────────────────────────
+// ── 密码策略 ──────────────────────────────────
+export function validatePassword(password) {
+  if (password.length < 8) return '密码长度至少为 8 位'
+  if (!/[A-Za-z]/.test(password)) return '密码必须包含字母'
+  if (!/[0-9]/.test(password)) return '密码必须包含数字'
+  return null
+}
+
+// ── 密码哈希 ──────────────────────────────────
 export function hashPassword(password) {
+  const err = validatePassword(password)
+  if (err) throw new Error(err)
   const salt = crypto.randomBytes(16).toString('hex')
   const hash = crypto.scryptSync(password, salt, 64).toString('hex')
   return `${salt}:${hash}`
