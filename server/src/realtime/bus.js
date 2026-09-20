@@ -10,7 +10,7 @@
 //   - 心跳机制（ping/pong）检测连接存活
 //   - 僵尸连接自动清理（60 秒无响应断开）
 
-import { verifyToken } from '../routes/auth.js'
+import { verifyToken } from '../auth/utils.js'
 
 const clients = new Map() // ws → { userId, shopId, connectedAt, lastPong, pingInterval }
 
