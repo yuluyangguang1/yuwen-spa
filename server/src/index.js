@@ -115,7 +115,7 @@ fastify.setNotFoundHandler(async (req, reply) => {
   if (req.url.startsWith('/api/')) {
     return reply.code(404).send({ error: 'API not found' })
   }
-  return reply.sendFile('index.html')
+  return reply.sendFile('index.html', { headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate' } })
 })
 
 // ─── 8. 静态文件托管（前端构建产物）───────────────────────────
