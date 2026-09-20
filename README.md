@@ -23,7 +23,9 @@ Covers the full daily workflow of a physical foot bath store:
 | **Customer View (顾客端)** | QR code to check history, balance, add services |
 | **Admin (老板看板)** | Daily revenue, monthly reports, cross-store aggregation |
 | **AI Assistant (AI 助手)** | Intelligent technician scoring, business reports, scheduling suggestions |
-| **Notifications (通知)** | Enterprise WeChat webhook for real-time alerts |
+|| **Notifications (通知)** | Enterprise WeChat / Feishu / DingTalk / Slack / Discord webhook |
+|| **Reports (经营报表)** | Daily revenue, technician performance, CSV export, business summary |
+|| **PWA (渐进式应用)** | Offline-capable, installable, service worker cache |
 
 ## Design Principles
 
@@ -222,7 +224,7 @@ MIT
 
 ---
 
-> **中文说明**
+|> **中文说明**
 >
 > **足韵** 是一款专为线下足浴/足疗门店设计的本地部署 SaaS 系统。
 >
@@ -231,9 +233,35 @@ MIT
 > - **零客户端**：无需安装 App 或小程序，浏览器即入口
 > - **中国风设计**：宣纸、墨色调，区别于美团/有赞的互联网风格
 > - **AI 赋能**：内置 AI 助手，可进行技师月度评分、生成经营日报、智能排钟建议
-> - **企业微信通知**：新派钟、结算、会员办卡等事件自动推送至企业微信群
+> - **多平台通知**：企业微信、飞书、钉钉、Slack、Discord 五种通知渠道
+> - **经营报表**：日营收、技师绩效、CSV 导出、经营摘要一目了然
+> - **PWA 支持**：可安装到手机主屏幕，离线可用
 >
 > 查看 [GitHub Release](https://github.com/yuluyangguang1/yuwen-spa/releases) 获取最新版本。
+
+---
+
+## 项目成长路线
+
+| Phase | 目标 | 状态 |
+|-------|------|------|
+| **Phase 1** | 核心完善（开钟、结账、会员、技师、排钟、AI 助手） | ✅ 已完成 |
+| **Phase 2** | 多店连锁管理、总部报表、跨店数据聚合 | 🔜 规划中 |
+| **Phase 3** | 客户营销（预约、积分、优惠券、会员等级） | 🔜 规划中 |
+| **Phase 4** | AI 深化（智能排钟、语音点单、经营预测、自动调价） | 🔜 规划中 |
+| **Phase 5** | 生态扩展（PWA 完整支持、微信小程序、硬件对接、开放 API） | 🔜 规划中 |
+
+## 同类项目研究
+
+| 项目 | Stars | 技术栈 | 说明 |
+|------|-------|--------|------|
+| [FloCafe](https://github.com/FreeOpenSourcePOS/FloCafe) | 92★ | Electron + React + SQLite | 免费开源咖啡店 POS |
+| [small-pos-open-source](https://github.com/longnick/small-pos-open-source) | 92★ | React + TypeScript + Vite + PWA | 离线优先零售 POS |
+| [pos-pro](https://github.com/Hao0321/pos-pro) | 19★ | Electron + React | 传统中文离线零售 POS |
+| [SalonPro ERP](https://github.com/Abhijayshah/salonpro-erp) | — | TypeScript | 美容院/SPA 一体化 SaaS |
+| [puntovivo](https://github.com/johnny4young/puntovivo) | 3★ | Fastify + tRPC + SQLite | 拉美财税原生 POS |
+
+> 足韵的差异化：**纯 Web 零客户端 + 中国风美学 + AI 深度集成**，区别于 Electron 桌面类方案。
 
 ---
 
