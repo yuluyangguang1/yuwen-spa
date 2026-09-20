@@ -115,7 +115,6 @@ fastify.setNotFoundHandler(async (req, reply) => {
   if (req.url.startsWith('/api/')) {
     return reply.code(404).send({ error: 'API not found' })
   }
-  reply.header('Cache-Control', 'no-cache, no-store, must-revalidate')
   return reply.sendFile('index.html')
 })
 
@@ -125,6 +124,11 @@ fastify.setNotFoundHandler(async (req, reply) => {
 const publicDir = path.join(ROOT, 'public')
 const fs = await import('node:fs')
 if (fs.existsSync(publicDir)) {
+  // index.html 不缓存，确保用户总是拿到最新 JS bundle
+  fastify.get('/', async (req, reply) => {
+    reply.header('Cache-Control', 'no-cache, no-store, must-revalidate')
+    return reply.sendFile('index.html')
+  })
   await fastify.register(fastifyStatic, {
     root: publicDir,
     prefix: '/',
@@ -132,6 +136,12 @@ if (fs.existsSync(publicDir)) {
     maxAge: '1h',
     // 设置 ETag
     etag: true,
+    // 排除 index.html（已由上方路由处理）
+    setHeaders: (res, path) => {
+      if (path.endsWith('index.html')) {
+        res.header('Cache-Control', 'no-cache, no-store, must-revalidate')
+      }
+    },
   })
 } else {
   fastify.get('/', async (req, reply) => {
