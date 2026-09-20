@@ -124,24 +124,16 @@ fastify.setNotFoundHandler(async (req, reply) => {
 const publicDir = path.join(ROOT, 'public')
 const fs = await import('node:fs')
 if (fs.existsSync(publicDir)) {
-  // index.html 不缓存，确保用户总是拿到最新 JS bundle
-  fastify.get('/', async (req, reply) => {
-    reply.header('Cache-Control', 'no-cache, no-store, must-revalidate')
-    return reply.sendFile('index.html')
-  })
-  await fastify.register(fastifyStatic, {
+  fastify.addHook('preHandler', (req, reply) => {
+  if (req.url === '/') reply.header('Cache-Control', 'no-cache, no-store, must-revalidate')
+})
+await fastify.register(fastifyStatic, {
     root: publicDir,
     prefix: '/',
     // 缓存静态资源 1 小时（文件名带 hash）
     maxAge: '1h',
     // 设置 ETag
     etag: true,
-    // index.html 不缓存，确保用户总是拿到最新 JS bundle
-    setHeaders: (res, path) => {
-      if (path.endsWith('index.html')) {
-        res.header('Cache-Control', 'no-cache, no-store, must-revalidate')
-      }
-    },
   })
 } else {
   fastify.get('/', async (req, reply) => {
