@@ -44,7 +44,7 @@ const AdminUsers = React.lazy(() => import('./pages/admin/AdminUsers'))
 // ─── 加载占位符 ──────────────────────────────────────
 function PageLoader() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0a0a09]">
+    <div className="min-h-screen flex items-center justify-center bg-[#170d02]">
       <div className="text-tan text-sm animate-pulse">加载中...</div>
     </div>
   )
@@ -73,7 +73,10 @@ function RequireAuth({ children, roles }: { children: ReactNode; roles?: string[
 export default function App() {
   return (
     <React.Suspense fallback={<PageLoader />}>
-      <Routes>
+      <a href="#main-content" className="skip-navigation">跳至主内容</a>
+      <main id="main-content">
+        <nav aria-label="主导航">
+          <Routes>
         {/* 登录页（无需鉴权） */}
         <Route path="/login" element={<Login />} />
 
@@ -121,6 +124,8 @@ export default function App() {
           <Route path="settings" element={<AdminSettings />} />
         </Route>
       </Routes>
-    </React.Suspense>
+      </nav>
+    </main>
+  </React.Suspense>
   )
 }

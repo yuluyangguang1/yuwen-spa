@@ -118,25 +118,45 @@ fastify.setNotFoundHandler(async (req, reply) => {
   return reply.sendFile('index.html')
 })
 
-// ─── 8. 静态文件托管（前端构建产物）───────────────────────────
+// 8. 静态文件托管（前端构建产物）───────────────────────────
 // 生产：server/public 是 web build 拷贝过来的产物，根路径直接服务。
 // 开发：public 可能不存在，访问根路径会落到 SPA fallback 提示去 5173。
 const publicDir = path.join(ROOT, 'public')
 const fs = await import('node:fs')
 if (fs.existsSync(publicDir)) {
-  await fastify.register(fastifyStatic, {
-    root: publicDir,
-    prefix: '/',
-    // 缓存静态资源 1 小时（文件名带 hash）
-    maxAge: '1h',
-    // 设置 ETag
-    etag: true,
-    // index.html 不缓存
-    setHeaders: (res, path) => {
-      if (typeof path === 'string' && path.endsWith('index.html')) {
-        res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
-      }
-    },
+  // 手动服务静态资源，确保缓存头可控
+  fastify.get('/assets/*', async (req, reply) => {
+    const fileName = req.url.replace('/assets/', '')
+    const filePath = path.join(publicDir, 'assets', fileName)
+    if (!fs.existsSync(filePath)) return reply.code(404).send('Not found')
+    reply.header('Cache-Control', 'public, max-age=3600, immutable')
+    return reply.type(path.extname(fileName) === '.css' ? 'text/css' : 'application/javascript').send(fs.readFileSync(filePath))
+  })
+  // index.html 不缓存
+  fastify.get('/', async (req, reply) => {
+    reply.header('Cache-Control', 'no-cache, no-store, must-revalidate')
+    reply.header('Pragma', 'no-cache')
+    reply.header('Expires', '0')
+    const htmlPath = path.join(publicDir, 'index.html')
+    return reply.type('text/html').send(fs.readFileSync(htmlPath))
+  })
+  // 其他静态资源（icons/manifest/sw.js）不缓存
+  fastify.get('/icons/*', async (req, reply) => {
+    const fileName = req.url.replace('/icons/', '')
+    const filePath = path.join(publicDir, 'icons', fileName)
+    if (!fs.existsSync(filePath)) return reply.code(404).send('Not found')
+    reply.header('Cache-Control', 'no-cache')
+    const ext = path.extname(fileName)
+    const mime = ext === '.png' ? 'image/png' : ext === '.svg' ? 'image/svg+xml' : 'application/octet-stream'
+    return reply.type(mime).send(fs.readFileSync(filePath))
+  })
+  fastify.get('/manifest.json', async (req, reply) => {
+    reply.header('Cache-Control', 'no-cache')
+    return reply.type('application/json').send(fs.readFileSync(path.join(publicDir, 'manifest.json')))
+  })
+  fastify.get('/sw.js', async (req, reply) => {
+    reply.header('Cache-Control', 'no-cache')
+    return reply.type('application/javascript').send(fs.readFileSync(path.join(publicDir, 'sw.js')))
   })
 } else {
   fastify.get('/', async (req, reply) => {

@@ -1,4 +1,4 @@
-import { X, AlertTriangle } from 'lucide-react'
+import { IconX as X, IconAlertTriangle as AlertTriangle } from '@tabler/icons-react'
 
 interface ConfirmDialogProps {
   open: boolean
@@ -24,24 +24,24 @@ export function ConfirmDialog({
   onCancel,
 }: ConfirmDialogProps) {
   const borderClass =
-    variant === 'danger' ? 'border-red-500/30' :
-    variant === 'warning' ? 'border-yellow-500/30' :
+    variant === 'danger' ? 'border-cinnabar/30' :
+    variant === 'warning' ? 'border-gold/30' :
     'border-white/10'
 
   const confirmClass =
-    variant === 'danger' ? 'bg-red-600 hover:bg-red-700 text-white' :
-    variant === 'warning' ? 'bg-yellow-600 hover:bg-yellow-700 text-white' :
+    variant === 'danger' ? 'bg-cinnabar hover:bg-cinnabar/80 text-white' :
+    variant === 'warning' ? 'bg-gold hover:bg-gold/80 text-white' :
     'bg-tan text-white'
 
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className={`glass-card w-full max-w-sm p-5 space-y-4 border ${borderClass}`}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className={`w-full max-w-sm p-5 space-y-4 border ${borderClass}`}>
         <div className="flex items-center justify-between">
           <h2 className="font-medium flex items-center gap-2">
-            {variant === 'danger' && <AlertTriangle size={16} className="text-red-400" />}
-            {variant === 'warning' && <AlertTriangle size={16} className="text-yellow-400" />}
+            {variant === 'danger' && <AlertTriangle size={16} className="text-cinnabar" />}
+            {variant === 'warning' && <AlertTriangle size={16} className="text-gold" />}
             {title}
           </h2>
           <button onClick={onCancel} className="text-white/30 hover:text-white"><X size={18} /></button>

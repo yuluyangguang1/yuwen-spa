@@ -5,7 +5,7 @@
 // 支持 aria-checked 切换状态和系统偏好回退。
 
 import { useEffect, useState, useCallback } from 'react'
-import { Sun, Moon } from 'lucide-react'
+import { IconSun as Sun, IconMoon as Moon } from '@tabler/icons-react'
 
 interface DarkModeToggleProps {
   className?: string
@@ -52,10 +52,10 @@ export function DarkModeToggle({ className = '' }: DarkModeToggleProps) {
       className={`dark-mode-toggle ${className}`}
     >
       <span className={`transition-opacity duration-300 ${isDark ? 'opacity-0' : 'opacity-100'}`} aria-hidden="true">
-        <Sun size={18} />
+        <Sun size={18} stroke={1.5} />
       </span>
       <span className={`transition-opacity duration-300 ${isDark ? 'opacity-100' : 'opacity-0'}`} aria-hidden="true">
-        <Moon size={18} />
+        <Moon size={18} stroke={1.5} />
       </span>
     </button>
   )

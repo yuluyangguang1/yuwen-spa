@@ -32,12 +32,12 @@ export default function AdminLayout() {
   return (
     <div className="flex h-screen">
       {/* 侧边栏 */}
-      <aside className="hidden md:flex flex-col w-52 border-r border-white/5 bg-[#0a0a09]">
-        <div className="p-5">
+      <aside className="hidden md:flex flex-col w-52 border-r border-white/5 bg-[#170d02]" role="navigation" aria-label="主导航">
+        <header className="p-5">
           <h1 className="font-display text-xl text-tan">足韵</h1>
-          <p className="text-[10px] text-white/30 mt-0.5">管理后台</p>
-        </div>
-        <nav className="flex-1 px-2 space-y-0.5">
+          <p className="text-xs text-white/30 mt-0.5">管理后台</p>
+        </header>
+        <nav className="flex-1 px-2 space-y-0.5" aria-label="主导航">
           {navItems.map(item => (
             <NavLink
               key={item.to}
@@ -60,6 +60,7 @@ export default function AdminLayout() {
           <a href="/tech" className="block px-3 py-1.5 text-white/30 hover:text-white/60 rounded">→ 技师端</a>
           <button
             onClick={() => setShowPwd(true)}
+            tabIndex={0}
             className="w-full flex items-center gap-2 px-3 py-1.5 text-white/30 hover:text-tan rounded transition-colors"
           >
             <Key size={12} />
@@ -67,6 +68,8 @@ export default function AdminLayout() {
           </button>
           <button
             onClick={logout}
+            tabIndex={0}
+            aria-label="退出登录"
             className="w-full flex items-center gap-2 px-3 py-1.5 text-white/30 hover:text-red-400 rounded transition-colors"
           >
             <LogOut size={12} />
@@ -76,14 +79,14 @@ export default function AdminLayout() {
       </aside>
 
       {/* 移动端底部导航 */}
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex justify-around border-t border-white/5 bg-[#0a0a09]/95 backdrop-blur-xl py-1.5 safe-area-pb">
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 flex justify-around border-t border-white/5 bg-[#170d02]/95 py-1.5 safe-area-pb" aria-label="移动端导航">
         {mobileNavItems.map(item => (
           <NavLink
             key={item.to}
             to={item.to}
             end={item.end}
             className={({ isActive }) =>
-              `flex flex-col items-center gap-0.5 px-2 py-1 text-[10px] ${isActive ? 'text-tan' : 'text-white/40'}`
+              `flex flex-col items-center gap-0.5 px-2 py-1 text-xs ${isActive ? 'text-tan' : 'text-white/40'}`
             }
           >
             <item.icon size={18} />
@@ -96,13 +99,16 @@ export default function AdminLayout() {
       <div className="md:hidden fixed top-0 right-0 z-50 p-3 flex items-center gap-2">
         <button
           onClick={() => setShowPwd(true)}
-          className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/5 text-white/40 text-[10px] hover:text-tan transition-colors"
+          tabIndex={0}
+          className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/5 text-white/40 text-xs hover:text-tan transition-colors"
         >
           <Key size={12} />
         </button>
         <button
           onClick={logout}
-          className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/5 text-white/40 text-[10px] hover:text-red-400 transition-colors"
+          tabIndex={0}
+          aria-label="退出登录"
+          className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white/5 text-white/40 text-xs hover:text-red-400 transition-colors"
         >
           <LogOut size={12} />
           退出
