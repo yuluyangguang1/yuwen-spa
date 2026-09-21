@@ -31,7 +31,7 @@ export default function GuestView() {
 
   if (!room) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="min-h-[100dvh] flex items-center justify-center p-4">
         <div className="text-center text-white/40">
           <div className="text-lg mb-2">未找到该房间</div>
           <div className="text-xs text-white/20">请确认二维码是否正确</div>
@@ -95,7 +95,7 @@ function GuestSelectView({ room }: { room: any }) {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="min-h-[100dvh] flex items-center justify-center p-4">
         <div className="text-center space-y-4">
           <div className="w-16 h-16 mx-auto rounded-full bg-moss/20 flex items-center justify-center">
             <Check size={32} className="text-moss" />
@@ -111,7 +111,7 @@ function GuestSelectView({ room }: { room: any }) {
   }
 
   return (
-    <div className="min-h-screen max-w-md mx-auto p-4 space-y-4">
+    <div className="min-h-[100dvh] max-w-md mx-auto p-4 space-y-4">
       {/* 品牌头 + 房间信息 */}
       <div className="text-center py-3">
         <h1 className="font-display text-2xl text-tan">足韵</h1>
@@ -316,7 +316,7 @@ function GuestActiveView({ ticket, room }: { ticket: any; room: any }) {
     : 0
 
   return (
-    <div className="min-h-screen max-w-md mx-auto p-4 space-y-4">
+    <div className="min-h-[100dvh] max-w-md mx-auto p-4 space-y-4">
       <div className="text-center py-3">
         <h1 className="font-display text-2xl text-tan">足韵</h1>
         <p className="text-xs text-white/30 mt-1">{room.number}号{room.type}</p>

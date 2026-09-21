@@ -113,7 +113,7 @@ class ErrorBoundary extends React.Component<{ children: ReactNode }> {
   render() {
     if (this.state.hasError) {
       return (
-        <div className="min-h-screen flex items-center justify-center bg-[#0a0a09] text-white/60">
+        <div className="min-h-[100dvh] flex items-center justify-center bg-[#0a0a09] text-white/60">
           <div className="text-center space-y-4">
             <h2 className="text-xl font-display text-tan">出了点问题</h2>
             <p className="text-sm">{this.state.error?.message || '未知错误'}</p>

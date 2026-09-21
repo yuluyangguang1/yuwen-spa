@@ -1,7 +1,3 @@
-@import url('https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.7.0/style.css');
-@import url('https://fonts.googleapis.com/css2?family=LXGW+WenKai&display=swap');
-@import url('https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler.min.css');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -67,6 +63,9 @@
   /* 玻璃卡片（Liquid Glass 增强版） */
   .glass-card {
     @apply rounded-xl border border-white/10 bg-white/[0.06] transition-colors duration-200;
+    contain: content;
+    content-visibility: auto;
+    contain-intrinsic-size: 0 200px;
   }
   .glass-card:hover {
     @apply border-white/20 bg-white/[0.06];
@@ -107,6 +106,14 @@
   /* 移动端安全区域 */
   .safe-area-pb {
     padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* 100dvh 工具类（动态视口高度，兼容移动端浏览器UI） */
+  .min-h-[100dvh] {
+    min-height: 100dvh;
+  }
+  .min-h-screen {
+    min-height: 100dvh;
   }
 
   /* 触屏友好的点击区域（最小 44x44pt） */
@@ -156,6 +163,8 @@
     animation: skeleton-pulse 1.8s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
     position: relative;
     overflow: hidden;
+    contain: content;
+    contain-intrinsic-size: 0 120px;
   }
   .skeleton::after {
     content: '';
@@ -355,6 +364,60 @@
   }
   .dark-mode-toggle-track {
     transition: none !important;
+  }
+}
+
+/* ─── 弹性文本子元素最小宽度 ─────────────── */
+.flex > * {
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Off-screen sections */
+.room-card,
+.confirm-overlay,
+.toast {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 200px;
+}
+
+/* ─── 响应式断点：768px ──────────────────── */
+@media (max-width: 768px) {
+  .glass-card {
+    @apply rounded-lg p-3;
+    contain-intrinsic-size: 0 180px;
+  }
+  .btn-primary,
+  .btn-secondary {
+    @apply px-3 py-2 text-sm;
+  }
+  .confirm-dialog {
+    @apply p-4;
+  }
+}
+
+/* ─── 响应式断点：480px ──────────────────── */
+@media (max-width: 480px) {
+  .glass-card {
+    @apply rounded-md p-2;
+    contain-intrinsic-size: 0 160px;
+  }
+  .btn-primary,
+  .btn-secondary {
+    @apply px-2 py-1.5 text-xs;
+    min-height: 40px;
+  }
+  .toast {
+    @apply left-1 right-1 bottom-1 -translate-x-0;
+    font-size: 0.75rem;
+    padding: 0.5rem 0.75rem;
+  }
+  .confirm-dialog {
+    @apply p-3 mx-2;
+  }
+  .flex > * {
+    min-width: 0;
+    overflow: hidden;
   }
 }
 

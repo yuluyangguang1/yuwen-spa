@@ -4,8 +4,8 @@
   "description": "线下足浴本地部署 SaaS 系统",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#0e0e0d",
-  "theme_color": "#0e0e0d",
+  "background_color": "#170d02",
+  "theme_color": "#170d02",
   "orientation": "portrait",
   "icons": [
     {

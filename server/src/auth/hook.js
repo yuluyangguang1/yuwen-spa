@@ -33,18 +33,31 @@ export async function registerAuthHook(fastify) {
 
     // POST /api/reviews 需要鉴权（顾客评价需验证身份）
     if (req.url.startsWith('/api/reviews') && req.method === 'POST') {
-      const payload = extractToken(req)
-      if (!payload) return reply.code(401).send({ error: '请先登录' })
-      req.user = payload
+      try {
+        const payload = extractToken(req)
+        if (!payload) return reply.code(401).send({ error: '请先登录' })
+        req.user = payload
+      } catch (e) {
+        req.log.error(e)
+        return reply.code(401).send({ error: '令牌无效' })
+      }
       return
     }
 
-    const payload = extractToken(req)
-    if (!payload) {
-      return reply.code(401).send({ error: '请先登录' })
-    }
+    try {
+      const payload = extractToken(req)
+      if (!payload) {
+        return reply.code(401).send({ error: '请先登录' })
+      }
 
-    // 把用户信息挂到 request 上，后续路由可以用
-    req.user = payload
+      // 把用户信息挂到 request 上，后续路由可以用
+      req.user = payload
+      if (!req.user.shop_id) {
+        return reply.code(401).send({ error: '令牌无效：缺少 shop_id' })
+      }
+    } catch (e) {
+      req.log.error(e)
+      return reply.code(401).send({ error: '令牌无效' })
+    }
   })
 }

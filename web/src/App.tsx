@@ -44,7 +44,7 @@ const AdminUsers = React.lazy(() => import('./pages/admin/AdminUsers'))
 // ─── 加载占位符 ──────────────────────────────────────
 function PageLoader() {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#170d02]">
+    <div className="min-h-[100dvh] flex items-center justify-center bg-[#170d02]">
       <div className="text-tan text-sm animate-pulse">加载中...</div>
     </div>
   )
