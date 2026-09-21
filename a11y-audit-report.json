@@ -1,0 +1,22 @@
+{
+  "findings": [
+    "ConfirmDialog.tsx lines 38-67 high: Modal missing role=dialog, aria-modal, aria-labelledby, aria-describedby. Violates WAI-ARIA 1.2 Dialog pattern. Add role=dialog, aria-modal=true, id on title with aria-labelledby, message with aria-describedby.",
+    "ConfirmDialog.tsx lines 36-67 high: No focus trap; Tab can focus background elements; no focus return on close. Violates WAI-ARIA Focus Management. Implement focus trap and return focus to trigger button on close.",
+    "index.html line 5 high: viewport has user-scalable=no and maximum-scale=1.0 preventing zoom. Violates WCAG 1.4.4. Remove user-scalable=no and maximum-scale=1.0.",
+    "App.tsx lines 73-125 high: Route rendering has no main wrapper; pages lack main landmark. Violates WCAG 1.3.1 Semantic HTML. Wrap each page outer div in main.",
+    "Login.tsx lines 39-98 high: Login page uses div not main, no skip navigation link. Violates WCAG 2.4.1. Add main wrapper and skip-link.",
+    "AdminDashboard.tsx lines 62-85 high: section elements lack aria-labelledby referencing their h2 headings. Violates WCAG 1.3.1. Add id to h2 and aria-labelledby to section.",
+    "AdminTickets.tsx lines 145-165 high: Filter date inputs and selects lack associated label or aria-label. Violates WCAG 1.3.1 Form Labels. Add label elements or aria-label.",
+    "PosHome.tsx lines 64-92 high: Room cards have cursor-pointer but no role=button, tabIndex, or keyboard handler. Violates WCAG 2.1.1 Keyboard Accessible. Add role=button tabIndex=0 onKeyDown handler.",
+    "PosHome.tsx line 88 med: Hint text text-white/20 on glass-card(bg-white/5) has contrast below 3:1. Violates WCAG 1.4.3. Use higher opacity text color.",
+    "AdminDashboard.tsx lines 113,166-169 med: text-moss/50 and text-moss/60 have very low contrast on dark bg(moss full opacity is only 4.12:1). Violates WCAG 1.4.3. Use higher opacity text.",
+    "index.css lines 324-333 med: prefers-reduced-motion does not cover room-card animation or status-pulse animate-ping. Violates WCAG 2.3.3. Add coverage for these animations.",
+    "index.css lines 40-45 med: skip-link CSS defined but no corresponding a element in DOM; keyboard users cannot skip navigation. Violates WCAG 2.4.1. Add skip-navigation link in App or layout.",
+    "ConfirmDialog.tsx lines 39-67 med: No aria-live region to notify screen readers of dialog state changes. Violates WCAG 4.1.3. Add aria-live=polite or aria-atomic=true.",
+    "LoadingSkeleton.tsx lines 17-26 low: Skeleton divs lack aria-hidden or role=presentation. Violates WCAG 4.1.3. Add aria-hidden=true role=presentation.",
+    "AdminDashboard.tsx lines 54-59 low: StatCard values have no aria-label for screen readers. Violates WCAG 4.1.2. Add aria-label describing the value.",
+    "AdminTickets.tsx lines 143-165 low: Filter icon lacks aria-label. Violates WCAG 1.1.1. Add aria-label=筛选 to icon.",
+    "Login.tsx lines 51-72 low: Error message lacks aria-describedby association with form inputs. Violates WCAG 1.3.1. Add id to error element and aria-describedby on inputs."
+  ],
+  "a11y_score": 4.2
+}

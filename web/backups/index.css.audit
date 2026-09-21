@@ -1,0 +1,366 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  body {
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    text-rendering: optimizeLegibility;
+  }
+  /* 宣纸纹理背景（极淡） */
+  .bg-paper-texture {
+    background-image: url("data:image/svg+xml,%3Csvg width='100' height='100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23n)' opacity='0.02'/%3E%3C/svg%3E");
+  }
+  /* 自定义滚动条 */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-white/10 rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-white/20;
+  }
+  /* 键盘焦点指示器 */
+  :focus-visible {
+    outline: 2px solid #a0826d;
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+  /* 跳过导航链接（仅键盘可见） */
+  .skip-link {
+    @apply absolute -top-10 left-4 z-[100] bg-tan text-white px-4 py-2 rounded-b-lg transition-all duration-200;
+  }
+  .skip-link:focus {
+    @apply top-0;
+  }
+}
+
+@layer components {
+  /* 玻璃卡片（Liquid Glass 增强版） */
+  .glass-card {
+    @apply rounded-xl border border-white/10 bg-white/5 backdrop-blur-xl shadow-lg transition-all duration-200;
+  }
+  .glass-card:hover {
+    @apply border-white/20 bg-white/[0.06];
+  }
+  .dark .glass-card {
+    @apply border-white/5 bg-white/[0.03];
+  }
+  .dark .glass-card:hover {
+    @apply border-white/10 bg-white/[0.06];
+  }
+
+  /* 按钮变体 */
+  .btn-primary {
+    @apply bg-tan hover:bg-tan-dark text-white font-medium px-4 py-2.5 rounded-xl transition-all duration-200 active:scale-[0.97] shadow-lg shadow-tan/20;
+  }
+  .btn-secondary {
+    @apply bg-white/5 hover:bg-white/10 text-white/70 font-medium px-4 py-2.5 rounded-xl transition-all duration-200 active:scale-[0.97] border border-white/10;
+  }
+  .btn-danger {
+    @apply bg-cinnabar/20 hover:bg-cinnabar/30 text-cinnabar font-medium px-4 py-2.5 rounded-xl transition-all duration-200 active:scale-[0.97];
+  }
+
+  /* 状态指示器脉冲 */
+  .status-pulse {
+    @apply relative;
+  }
+  .status-pulse::after {
+    content: '';
+    @apply absolute inset-0 rounded-full animate-ping;
+    opacity: 0.3;
+  }
+
+  /* 数字跳动动画 */
+  .num-animate {
+    transition: all 0.3s ease;
+  }
+
+  /* 移动端安全区域 */
+  .safe-area-pb {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* 触屏友好的点击区域（最小 44x44pt） */
+  .touch-target {
+    @apply min-h-[44px] min-w-[44px] flex items-center justify-center;
+  }
+
+  /* 响应式间距令牌 */
+  .space-mobile { gap: 0.5rem; }
+  .space-mobile-sm { gap: 0.375rem; }
+  .space-mobile-lg { gap: 0.75rem; }
+  .px-mobile { padding-left: 0.75rem; padding-right: 0.75rem; }
+  .py-mobile { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+  .py-mobile-lg { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+  .text-mobile { font-size: 0.875rem; line-height: 1.25rem; }
+
+  /* 移动端响应式间距令牌（扩展） */
+  .mx-mobile { margin-left: 0.75rem; margin-right: 0.75rem; }
+  .my-mobile { margin-top: 0.5rem; margin-bottom: 0.5rem; }
+  .mt-mobile { margin-top: 0.5rem; }
+  .mb-mobile { margin-bottom: 0.5rem; }
+  .mt-mobile-lg { margin-top: 0.75rem; }
+  .mb-mobile-lg { margin-bottom: 0.75rem; }
+  .gap-mobile { gap: 0.5rem; }
+  .gap-mobile-sm { gap: 0.375rem; }
+  .gap-mobile-lg { gap: 0.75rem; }
+  .gap-mobile-xl { gap: 1rem; }
+  .w-full-mobile { width: 100%; }
+
+  /* 排钟房间卡片动画 */
+  .room-card {
+    @apply transition-all duration-300;
+  }
+  .room-card.occupied {
+    @apply border-tan/30 bg-tan/5;
+    animation: fadeSlideIn 0.4s ease-out;
+  }
+
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* 骨架屏加载（统一颜色 + 光泽动画） */
+.skeleton {
+    @apply bg-white/5 rounded-lg;
+    animation: skeleton-pulse 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    position: relative;
+    overflow: hidden;
+  }
+  .skeleton::after {
+    content: '';
+    @apply absolute inset-0;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255,255,255,0.06) 50%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-shimmer-inner 2s ease-in-out infinite;
+    pointer-events: none;
+  }
+  .skeleton-shimmer {
+    @apply skeleton;
+    animation: skeleton-shimmer-outer 2s ease-in-out infinite,
+               skeleton-pulse 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+
+  /* 通知横幅 */
+  .toast {
+    @apply fixed bottom-4 left-1/2 -translate-x-1/2 z-50 px-4 py-3 rounded-xl bg-tan/90 text-white text-sm font-medium shadow-xl backdrop-blur-sm;
+    animation: slideUp 0.3s ease-out, fadeOut 0.3s ease-in 2.5s forwards;
+  }
+  @keyframes slideUp {
+    from { opacity: 0; transform: translate(-50%, 20px); }
+    to { opacity: 1; transform: translate(-50%, 0); }
+  }
+  @keyframes fadeOut {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+
+  /* 确认对话框 */
+  .confirm-overlay {
+    @apply fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm;
+  }
+  .confirm-dialog {
+    @apply glass-card p-6 max-w-sm w-full mx-4 space-y-4;
+  }
+  .confirm-title {
+    @apply text-lg font-display text-tan;
+  }
+  .confirm-message {
+    @apply text-white/60 text-sm leading-relaxed;
+  }
+  .confirm-actions {
+    @apply flex justify-end gap-3 pt-2;
+  }
+
+  /* 深色模式切换按钮 */
+  .dark-mode-toggle {
+    @apply touch-target rounded-lg bg-white/5 border border-white/10 
+           text-white/60 hover:bg-white/10 hover:text-tan 
+           transition-all duration-200 cursor-pointer
+           focus-visible:ring-2 focus-visible:ring-tan focus-visible:ring-offset-2 
+           focus-visible:ring-offset-[#0a0a09];
+  }
+  .dark-mode-toggle[aria-checked="true"] {
+    @apply bg-tan/30 border-tan/50 text-tan;
+  }
+  .dark-mode-toggle-track {
+    @apply absolute top-[3px] left-[3px] w-[26px] h-[26px] rounded-full
+           bg-white/80 shadow-md transition-transform duration-300
+           flex items-center justify-center;
+  }
+  .dark-mode-toggle[aria-checked="true"] .dark-mode-toggle-track {
+    @apply translate-x-7 bg-tan/20;
+  }
+
+  /* 跳转到主内容链接（无障碍） */
+  .skip-navigation {
+    @apply absolute -top-10 left-4 z-[100] px-4 py-2 rounded-lg
+           bg-tan text-white text-sm font-medium shadow-lg
+           transition-all duration-200;
+  }
+  .skip-navigation:focus {
+    @apply top-4;
+  }
+  .skip-navigation:focus-visible {
+    @apply outline-none ring-2 ring-tan ring-offset-2 ring-offset-[#0a0a09];
+  }
+
+  /* 骨架屏动画增强：脉冲 + 光泽（keyframes 移至 @layer utilities 外部） */
+
+  /* 实时连接状态指示器 */
+  .ws-status {
+    @apply flex items-center gap-1.5 text-xs;
+  }
+  .ws-status.connected {
+    @apply text-moss;
+  }
+  .ws-status.disconnected {
+    @apply text-cinnabar;
+  }
+  .ws-status-dot {
+    @apply w-2 h-2 rounded-full;
+  }
+  .ws-status.connected .ws-status-dot {
+    @apply bg-moss animate-pulse;
+  }
+  .ws-status.disconnected .ws-status-dot {
+    @apply bg-cinnabar;
+  }
+
+  /* 移动端响应式间距 */
+  .mobile-padding {
+    @apply px-4 md:px-6 lg:px-8;
+  }
+  .mobile-gap {
+    @apply gap-3 md:gap-4;
+  }
+}
+
+/* 骨架屏动画 keyframes（全局） */
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+@keyframes skeleton-shimmer-inner {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes skeleton-shimmer-outer {
+  0% { background-position: -200% 0; opacity: 0.5; }
+  100% { background-position: 200% 0; opacity: 0.8; }
+}
+
+/* ─── 焦点可见样式（全局键盘导航） ────────── */
+*:focus-visible {
+  @apply outline-none ring-2 ring-tan ring-offset-2 ring-offset-[#0a0a09];
+}
+*:focus:not(:focus-visible) {
+  @apply outline-none;
+}
+
+/* 深色模式下的焦点样式 */
+.dark *:focus-visible {
+  @apply ring-tan ring-offset-[#1a1a19];
+}
+
+/* ─── 深色模式定制 ──────────────────────── */
+.dark {
+  --color-bg-primary: #0a0a09;
+  --color-bg-secondary: #1a1a19;
+  --color-bg-card: #1a1a19;
+  --color-text-primary: #fafaf7;
+  --color-text-secondary: rgba(250, 250, 247, 0.6);
+  --color-text-muted: rgba(250, 250, 247, 0.35);
+  --color-border: rgba(250, 250, 247, 0.08);
+  --color-accent: #a0826d;
+  --color-accent-hover: #c8a882;
+}
+
+.dark body {
+  background-color: #0a0a09;
+  color: #fafaf7;
+}
+
+.dark .skeleton {
+  @apply bg-[#2a2a29];
+}
+
+/* 深色模式下滚动条样式 */
+.dark ::-webkit-scrollbar-thumb {
+  @apply bg-white/15;
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+  @apply bg-white/25;
+}
+
+/* 高对比度模式支持 */
+@media (prefers-contrast: high) {
+  .glass-card {
+    @apply border-white/30;
+  }
+  .btn-primary {
+    @apply ring-1 ring-tan/50;
+  }
+}
+
+/* 减少动画偏好支持 */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton,
+  .skeleton-shimmer,
+  .toast {
+    animation: none !important;
+  }
+  .dark-mode-toggle-track {
+    transition: none !important;
+  }
+}
+
+/* 移动端响应式间距调整 */
+@media (max-width: 640px) {
+  .glass-card {
+    @apply rounded-lg p-3;
+  }
+  .btn-primary,
+  .btn-secondary {
+    @apply px-3 py-2 text-sm;
+  }
+  .toast {
+    @apply left-2 right-2 -translate-x-0 bottom-2;
+  }
+}
+
+@layer utilities {
+  /* 中国风色彩工具类 */
+  .text-tan { color: #a0826d; }
+  .text-moss { color: #5a7a5a; }
+  .text-gold { color: #b8860b; }
+  .text-cinnabar { color: #8b3a3a; }
+  .bg-tan { background-color: rgba(160, 130, 109, 0.1); }
+  .bg-tan\/20 { background-color: rgba(160, 130, 109, 0.2); }
+  .bg-tan\/5 { background-color: rgba(160, 130, 109, 0.05); }
+  .bg-moss { background-color: rgba(90, 122, 90, 0.1); }
+  .bg-cinnabar { background-color: rgba(139, 58, 58, 0.1); }
+  .bg-gold { background-color: rgba(184, 134, 11, 0.1); }
+  .border-tan\/20 { border-color: rgba(160, 130, 109, 0.2); }
+  .border-tan\/30 { border-color: rgba(160, 130, 109, 0.3); }
+  /* 响应式字体缩放 */
+  .text-xs-responsive { @apply text-[11px] md:text-xs; }
+  .text-sm-responsive { @apply text-sm md:text-base; }
+}
