@@ -29,7 +29,7 @@ export function Skeleton({ className, width, height, rounded = true, shimmer = f
 // 房间卡片骨架
 export function RoomCardSkeleton() {
   return (
-    <div className="rounded-xl border border-white/5 bg-white/5 p-4 space-y-3 dark:border-white/5 dark:bg-[#2a2a29]">
+    <div className="rounded-xl border border-white/5 bg-white/5 p-2.5 space-y-3 dark:border-white/5 dark:bg-[#2a2a29]">
       <Skeleton className="h-4 w-1/3" shimmer />
       <Skeleton className="h-8 w-full" shimmer />
       <Skeleton className="h-3 w-1/2" shimmer />
@@ -51,7 +51,7 @@ export function TableSkeleton({ rows = 5 }: { rows?: number }) {
 // 统计卡片骨架
 export function StatsSkeleton() {
   return (
-    <div className="grid grid-cols-2 gap-4">
+    <div className="grid grid-cols-4 gap-2">
       {Array.from({ length: 4 }).map((_, i) => (
         <div key={i} className="rounded-xl border border-white/5 bg-white/5 p-4 space-y-2 dark:border-white/5 dark:bg-[#2a2a29]">
           <Skeleton className="h-3 w-1/2" shimmer />

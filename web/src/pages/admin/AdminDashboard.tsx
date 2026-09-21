@@ -60,7 +60,8 @@ export default function AdminDashboard() {
 
       {/* 技师状态 */}
       <section>
-        <h2 className="text-sm text-white/50 mb-3 flex items-center gap-2">
+        {/* TODO: 技师状态 + 房间状态 + 统计卡片同屏展示，内容过多导致横向拥挤，建议拆分或滚动 */}
+        <h2 className="text-xl text-white/50 mb-3 flex items-center gap-2">
           技师状态
           <span className="text-[10px] text-white/25">空闲 {idleTechs.length} · 服务中 {workingTechs.length}</span>
         </h2>
@@ -73,7 +74,7 @@ export default function AdminDashboard() {
 
       {/* 房间状态 */}
       <section>
-        <h2 className="text-sm text-white/50 mb-3 flex items-center gap-2">
+        <h2 className="text-xl text-white/50 mb-3 flex items-center gap-2">
           房间状态
           <span className="text-[10px] text-white/25">空闲 {idleRooms.length} · 使用中 {occupiedRooms.length}</span>
         </h2>

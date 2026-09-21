@@ -80,13 +80,13 @@
 
   /* 按钮变体 */
   .btn-primary {
-    @apply bg-tan hover:bg-tan-dark text-white font-medium px-4 py-2.5 rounded-xl transition-colors duration-200 active:scale-[0.97];
+    @apply bg-tan hover:bg-tan-dark text-white font-medium px-4 py-2.5 rounded-xl transition-colors duration-200 active:scale-[0.97] active:transition-[transform_100ms_cubic-bezier(0.34,1.56,0.64,1)];
   }
   .btn-secondary {
-    @apply bg-white/5 hover:bg-white/10 text-white/70 font-medium px-4 py-2.5 rounded-xl transition-colors duration-200 active:scale-[0.97] border border-white/10;
+    @apply bg-white/5 hover:bg-white/10 text-white/70 font-medium px-4 py-2.5 rounded-xl transition-colors duration-200 active:scale-[0.97] active:transition-[transform_100ms_cubic-bezier(0.34,1.56,0.64,1)] border border-white/10;
   }
   .btn-danger {
-    @apply bg-cinnabar/20 hover:bg-cinnabar/30 text-cinnabar font-medium px-4 py-2.5 rounded-xl transition-colors duration-200 active:scale-[0.97];
+    @apply bg-cinnabar/20 hover:bg-cinnabar/30 text-cinnabar font-medium px-4 py-2.5 rounded-xl transition-colors duration-200 active:scale-[0.97] active:transition-[transform_100ms_cubic-bezier(0.34,1.56,0.64,1)];
   }
 
   /* 状态指示器脉冲 */
@@ -142,7 +142,7 @@
   }
   .room-card.occupied {
     @apply border-tan/30 bg-tan/5;
-    animation: fadeSlideIn 0.4s ease-out;
+    animation: fadeSlideIn 0.2s ease-out;
   }
 
 @keyframes fadeSlideIn {
@@ -153,7 +153,7 @@
 /* 骨架屏加载（统一颜色 + 光泽动画） */
 .skeleton {
     @apply bg-white/5 rounded-lg;
-    animation: skeleton-pulse 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    animation: skeleton-pulse 1.8s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
     position: relative;
     overflow: hidden;
   }
@@ -167,19 +167,19 @@
       transparent 100%
     );
     background-size: 200% 100%;
-    animation: skeleton-shimmer-inner 2s ease-in-out infinite;
+    animation: skeleton-shimmer-inner 2s cubic-bezier(0.4, 0, 0.2, 1) infinite;
     pointer-events: none;
   }
   .skeleton-shimmer {
     @apply skeleton;
-    animation: skeleton-shimmer-outer 2s ease-in-out infinite,
-               skeleton-pulse 1.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    animation: skeleton-shimmer-outer 2s cubic-bezier(0.4, 0, 0.2, 1) infinite,
+               skeleton-pulse 1.8s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
   }
 
   /* 通知横幅 */
   .toast {
     @apply fixed bottom-4 left-1/2 -translate-x-1/2 z-50 px-4 py-3 rounded-xl bg-[#170d02]/90 text-white text-sm font-medium shadow-xl;
-    animation: slideUp 0.3s ease-out, fadeOut 0.3s ease-out 2.5s forwards;
+    animation: slideUp 0.2s ease-out, fadeOut 0.2s ease-out 2.5s forwards;
   }
   @keyframes slideUp {
     from { opacity: 0; transform: translate(-50%, 20px); }
@@ -344,6 +344,10 @@
   .skeleton-shimmer,
   .toast,
   .room-card,
+  .num-animate,
+  .dark-mode-toggle,
+  .confirm-dialog,
+  .confirm-overlay,
   .btn-primary,
   .btn-secondary,
   .btn-danger {

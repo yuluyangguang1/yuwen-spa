@@ -25,6 +25,8 @@ import { getLanIPs } from './lib/network.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(__dirname, '..')
+const publicDir = path.join(ROOT, 'public')
+const fs = await import('node:fs')
 
 const PORT_START = Number(process.env.PORT || 8080)
 const PORT_END = PORT_START + 10
@@ -115,14 +117,20 @@ fastify.setNotFoundHandler(async (req, reply) => {
   if (req.url.startsWith('/api/')) {
     return reply.code(404).send({ error: 'API not found' })
   }
-  return reply.sendFile('index.html')
+  const htmlPath = path.join(publicDir, 'index.html')
+  if (fs.existsSync(htmlPath)) {
+    reply.header('Cache-Control', 'no-cache, no-store, must-revalidate')
+    reply.header('Pragma', 'no-cache')
+    reply.header('Expires', '0')
+    return reply.type('text/html').send(fs.readFileSync(htmlPath))
+  }
+  return reply.code(404).send({ error: 'Not found' })
 })
 
 // 8. 静态文件托管（前端构建产物）───────────────────────────
 // 生产：server/public 是 web build 拷贝过来的产物，根路径直接服务。
 // 开发：public 可能不存在，访问根路径会落到 SPA fallback 提示去 5173。
-const publicDir = path.join(ROOT, 'public')
-const fs = await import('node:fs')
+// static files served manually above to ensure cache headers are controlled
 if (fs.existsSync(publicDir)) {
   // 手动服务静态资源，确保缓存头可控
   fastify.get('/assets/*', async (req, reply) => {

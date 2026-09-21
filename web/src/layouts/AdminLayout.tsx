@@ -38,7 +38,24 @@ export default function AdminLayout() {
           <p className="text-xs text-white/30 mt-0.5">管理后台</p>
         </header>
         <nav className="flex-1 px-2 space-y-0.5" aria-label="主导航">
-          {navItems.map(item => (
+          <span className="text-[10px] text-white/30 uppercase mt-3 mb-1">运营</span>
+          {navItems.slice(0, 5).map(item => (
+            <NavLink
+              key={item.to}
+              to={item.to}
+              end={item.end}
+              className={({ isActive }) =>
+                `flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors ${
+                  isActive ? 'bg-tan/10 text-tan' : 'text-white/50 hover:text-white/80 hover:bg-white/5'
+                }`
+              }
+            >
+              <item.icon size={16} />
+              {item.label}
+            </NavLink>
+          ))}
+          <span className="text-[10px] text-white/30 uppercase mt-3 mb-1">系统</span>
+          {navItems.slice(5).map(item => (
             <NavLink
               key={item.to}
               to={item.to}
