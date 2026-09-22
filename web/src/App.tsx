@@ -37,6 +37,7 @@ const AdminTechnicians = React.lazy(() => import('./pages/admin/AdminTechnicians
 const AdminRooms = React.lazy(() => import('./pages/admin/AdminRooms'))
 const AdminCustomers = React.lazy(() => import('./pages/admin/AdminCustomers'))
 const AdminTickets = React.lazy(() => import('./pages/admin/AdminTickets'))
+const AdminReports = React.lazy(() => import('./pages/admin/AdminReports'))
 const AdminAI = React.lazy(() => import('./pages/admin/AdminAI'))
 const AdminSettings = React.lazy(() => import('./pages/admin/AdminSettings'))
 const AdminUsers = React.lazy(() => import('./pages/admin/AdminUsers'))
@@ -75,8 +76,7 @@ export default function App() {
     <React.Suspense fallback={<PageLoader />}>
       <a href="#main-content" className="skip-navigation">跳至主内容</a>
       <main id="main-content">
-        <nav aria-label="主导航">
-          <Routes>
+        <Routes>
         {/* 登录页（无需鉴权） */}
         <Route path="/login" element={<Login />} />
 
@@ -119,13 +119,13 @@ export default function App() {
           <Route path="rooms" element={<AdminRooms />} />
           <Route path="customers" element={<AdminCustomers />} />
           <Route path="tickets" element={<AdminTickets />} />
+          <Route path="reports" element={<AdminReports />} />
           <Route path="ai" element={<AdminAI />} />
           <Route path="users" element={<AdminUsers />} />
           <Route path="settings" element={<AdminSettings />} />
         </Route>
       </Routes>
-      </nav>
-    </main>
+      </main>
   </React.Suspense>
   )
 }

@@ -65,22 +65,26 @@ export function registerRealtimeBus(fastify) {
   })
 
   // 给业务代码用：fastify.broadcast({ type: 'ticket:created', ... })
+  // 可选 msg.shop_id 字段，只推送到同店客户端
   fastify.decorate('broadcast', (msg) => {
-    const payload = JSON.stringify(msg)
-    const now = Date.now()
-    for (const [socket, entry] of clients) {
-      try {
-        // 跳过 60 秒内没有响应的僵尸连接
-        if (now - entry.lastPong > 120000) {
-          socket.close(4000, 'Heartbeat timeout')
-          continue
-        }
-        if (socket.readyState === 1) {
-          socket.send(payload)
-        }
-      } catch (_) { /* 客户端可能正在断开 */ }
-    }
-  })
+      const payload = JSON.stringify(msg)
+      const now = Date.now()
+      const targetShopId = msg.shop_id || null
+      for (const [socket, entry] of clients) {
+        try {
+          // 跳过 60 秒内没有响应的僵尸连接
+          if (now - entry.lastPong > 120000) {
+            socket.close(4000, 'Heartbeat timeout')
+            continue
+          }
+          // 按 shop_id 过滤：只推送到同店客户端
+          if (targetShopId && entry.shopId !== targetShopId) continue
+          if (socket.readyState === 1) {
+            socket.send(payload)
+          }
+        } catch (_) { /* 客户端可能正在断开 */ }
+      }
+    })
 
   // 获取活跃客户端统计
   fastify.decorate('getRealtimeStats', () => {

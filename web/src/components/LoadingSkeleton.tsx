@@ -16,6 +16,8 @@ interface SkeletonProps {
 export function Skeleton({ className, width, height, rounded = true, shimmer = false }: SkeletonProps) {
   return (
     <div
+      aria-hidden="true"
+      role="presentation"
       className={clsx(
         shimmer ? 'skeleton-shimmer' : 'skeleton',
         rounded ? 'rounded-md' : '',

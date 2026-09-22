@@ -21,3 +21,8 @@ web/dist/
 .vscode/
 .idea/
 *.swp
+
+# 运行时数据与构建缓存
+/db/
+server/db/reports/
+web/tsconfig.tsbuildinfo

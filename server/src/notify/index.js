@@ -11,8 +11,11 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const CONFIG_PATH = path.join(process.cwd(), 'db', 'notify-config.json')
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const ROOT = path.resolve(__dirname, '..', '..')
+const CONFIG_PATH = path.join(ROOT, 'db', 'notify-config.json')
 
 const DEFAULTS = {
   channels: {
@@ -24,10 +27,22 @@ const DEFAULTS = {
   },
 }
 
-// ── 配置管理 ──────────────────────────────────────
-export function getNotifyConfig() {
+// ── 配置管理（按店隔离，兼容旧全局文件）──────────
+function configPathFor(shopId) {
+  if (!shopId) return CONFIG_PATH
+  const safe = String(shopId).replace(/[^a-zA-Z0-9_-]/g, '_')
+  return path.join(ROOT, 'db', `notify-config.${safe}.json`)
+}
+
+export function getNotifyConfig(shopId) {
   try {
-    if (fs.existsSync(CONFIG_PATH)) {
+    const p = configPathFor(shopId)
+    if (fs.existsSync(p)) {
+      const file = JSON.parse(fs.readFileSync(p, 'utf8'))
+      return { ...DEFAULTS, ...file, channels: { ...DEFAULTS.channels, ...file.channels } }
+    }
+    // 本店无独立配置时，回退读旧全局文件（迁移兼容）
+    if (shopId && fs.existsSync(CONFIG_PATH)) {
       const file = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'))
       return { ...DEFAULTS, ...file, channels: { ...DEFAULTS.channels, ...file.channels } }
     }
@@ -35,10 +50,11 @@ export function getNotifyConfig() {
   return { ...DEFAULTS }
 }
 
-export function saveNotifyConfig(config) {
-  const dir = path.dirname(CONFIG_PATH)
+export function saveNotifyConfig(config, shopId) {
+  const p = configPathFor(shopId)
+  const dir = path.dirname(p)
   fs.mkdirSync(dir, { recursive: true })
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2))
+  fs.writeFileSync(p, JSON.stringify(config, null, 2))
 }
 
 // ── 各平台消息格式 ──────────────────────────────
@@ -143,8 +159,8 @@ async function sendDiscordWebhook(url, content) {
 }
 
 // ── 通用发送 ──────────────────────────────────────
-async function sendToChannel(channelName, content) {
-  const config = getNotifyConfig()
+async function sendToChannel(channelName, content, shopId) {
+  const config = getNotifyConfig(shopId)
   const channel = config.channels?.[channelName]
   if (!channel?.enabled || !channel.webhookUrl) return false
 
@@ -165,8 +181,8 @@ async function sendToChannel(channelName, content) {
 }
 
 // 发送到所有启用的渠道
-async function broadcastToAll(content) {
-  const promises = Object.keys(DEFAULTS.channels).map(ch => sendToChannel(ch, content))
+async function broadcastToAll(content, shopId) {
+  const promises = Object.keys(DEFAULTS.channels).map(ch => sendToChannel(ch, content, shopId))
   return Promise.all(promises)
 }
 
@@ -186,7 +202,7 @@ export async function notifyTicketCreated(ticket, techWebhookUrl) {
   ].filter(Boolean).join('\n')
 
   const results = await Promise.allSettled([
-    broadcastToAll(content),
+    broadcastToAll(content, ticket.shop_id),
     techWebhookUrl ? sendToChannelByUrl(techWebhookUrl, content) : Promise.resolve(false),
   ])
   return results.every(r => r.status === 'fulfilled')
@@ -219,7 +235,7 @@ export async function notifyTicketPaid(ticket, techWebhookUrl) {
     `> 提成：¥${commission}`,
   ].join('\n')
 
-  return broadcastToAll(content).then(() => {
+  return broadcastToAll(content, ticket.shop_id).then(() => {
     if (techWebhookUrl) return sendToChannelByUrl(techWebhookUrl, content)
     return true
   })
@@ -240,7 +256,7 @@ export async function notifyMembershipTopup(customer, amount_cents, type) {
     `> 余额：¥${balance}`,
   ].join('\n')
 
-  return broadcastToAll(content)
+  return broadcastToAll(content, customer.shop_id)
 }
 
 // ── 大额消费提醒：大群 ──────────────────────────
@@ -253,18 +269,18 @@ export async function notifyBigTicket(ticket, threshold_cents = 20000) {
     `> 项目：${ticket.service_name || '服务'}`,
     `> 金额：¥${price}`,
   ].join('\n')
-  return broadcastToAll(content)
+  return broadcastToAll(content, ticket.shop_id)
 }
 
 // ── 测试连接 ──────────────────────────────────────
-export async function testWebhook() {
+export async function testWebhook(shopId) {
   const content = '✅ 足韵 webhook 连接测试成功\n\n当前时间：' + new Date().toLocaleString('zh-CN')
-  return broadcastToAll(content)
+  return broadcastToAll(content, shopId)
 }
 
 // ── 获取各渠道状态 ──────────────────────────────
-export function getChannelStatus() {
-  const config = getNotifyConfig()
+export function getChannelStatus(shopId) {
+  const config = getNotifyConfig(shopId)
   return Object.entries(config.channels || {}).map(([key, ch]) => ({
     key,
     label: ch.label || key,

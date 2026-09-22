@@ -50,13 +50,7 @@
     outline-offset: 2px;
     border-radius: 4px;
   }
-  /* 跳过导航链接（仅键盘可见） */
-  .skip-link {
-    @apply absolute -top-10 left-4 z-[100] bg-tan text-white px-4 py-2 rounded-b-lg transition-opacity duration-200;
-  }
-  .skip-link:focus {
-    @apply top-0;
-  }
+  /* 跳过导航链接样式见文件顶部 .skip-navigation */
 }
 
 @layer components {
@@ -109,7 +103,7 @@
   }
 
   /* 100dvh 工具类（动态视口高度，兼容移动端浏览器UI） */
-  .min-h-[100dvh] {
+  .min-h-\[100dvh\] {
     min-height: 100dvh;
   }
   .min-h-screen {
@@ -359,7 +353,17 @@
   .confirm-overlay,
   .btn-primary,
   .btn-secondary,
-  .btn-danger {
+  .btn-danger,
+  .status-pulse,
+  .animate-ping,
+  .animate-pulse,
+  [class*="animate-"] {
+    animation: none !important;
+  }
+  .status-pulse::after {
+    animation: none !important;
+  }
+  .room-card.occupied {
     animation: none !important;
   }
   .dark-mode-toggle-track {

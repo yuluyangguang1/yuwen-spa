@@ -36,7 +36,7 @@ export default function AdminTickets() {
 
   const { data: technicians = [] } = useQuery({
     queryKey: ['technicians'],
-    queryFn: () => get('/api/technicians'),
+    queryFn: () => get('/api/technicians?pageSize=500'),
   })
 
   const fromTs = new Date(dateFrom).getTime()
@@ -44,7 +44,7 @@ export default function AdminTickets() {
 
   const { data: tickets = [], isLoading } = useQuery({
     queryKey: ['tickets-all', dateFrom, dateTo, status, techId],
-    queryFn: () => get(`/api/tickets?limit=500&date_from=${fromTs}&date_to=${toTs}${status ? `&status=${status}` : ''}${techId ? `&technician_id=${techId}` : ''}`),
+    queryFn: () => get(`/api/tickets?pageSize=500&date_from=${fromTs}&date_to=${toTs}${status ? `&status=${status}` : ''}${techId ? `&technician_id=${techId}` : ''}`),
   })
 
   const sortedTickets = useMemo(() => {
@@ -79,6 +79,17 @@ export default function AdminTickets() {
     return sortDir === 'asc' ? ' ↑' : ' ↓'
   }
 
+  // 统计（必须在 isLoading 早退之前调用，避免 Hooks 顺序不一致）
+  const stats = useMemo(() => {
+    const paid = tickets.filter((t: any) => t.status === 'paid')
+    return {
+      total: tickets.length,
+      revenue: paid.reduce((s: number, t: any) => s + t.price_cents, 0),
+      commission: paid.reduce((s: number, t: any) => s + t.commission_cents, 0),
+      paid: paid.length,
+    }
+  }, [tickets])
+
   if (isLoading) {
     return (
       <div className="p-4 md:p-6 space-y-4">
@@ -93,20 +104,9 @@ export default function AdminTickets() {
     )
   }
 
-  // 统计
-  const stats = useMemo(() => {
-    const paid = tickets.filter((t: any) => t.status === 'paid')
-    return {
-      total: tickets.length,
-      revenue: paid.reduce((s: number, t: any) => s + t.price_cents, 0),
-      commission: paid.reduce((s: number, t: any) => s + t.commission_cents, 0),
-      paid: paid.length,
-    }
-  }, [tickets])
-
   // 导出 CSV
   const exportCSV = () => {
-    const headers = ['时间', '项目', '技师', '房间', '顾客', '金额', '提成', '状态', '支付方式']
+    const headers = ['时间', '项目', '技师', '房间', '顾客', '金额', '提成', '状态', '履约', '支付方式']
     const rows = tickets.map((t: any) => [
       new Date(t.created_at).toLocaleString('zh-CN'),
       t.service_name || '',
@@ -116,6 +116,7 @@ export default function AdminTickets() {
       (t.price_cents / 100).toFixed(2),
       (t.commission_cents / 100).toFixed(2),
       statusLabel(t.status),
+      t.fulfillment === 'self' ? '自提' : '到店',
       t.payment_method || '',
     ])
     const csv = '\uFEFF' + [headers, ...rows].map(r => r.join(',')).join('\n')
@@ -141,14 +142,14 @@ export default function AdminTickets() {
       {/* 筛选栏 */}
       <div className="glass-card p-3 flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-1.5">
-          <Filter size={14} className="text-white/30" />
-          <input type="date" value={dateFrom} onChange={e => setFilters({ dateFrom: e.target.value })}
+          <Filter size={14} className="text-white/30" aria-label="筛选" />
+          <input type="date" aria-label="开始日期" value={dateFrom} onChange={e => setFilters({ dateFrom: e.target.value })}
             className="bg-white/5 border border-white/10 rounded px-2 py-1 text-xs focus:outline-none focus:border-tan/50" />
           <span className="text-white/30 text-xs">至</span>
-          <input type="date" value={dateTo} onChange={e => setFilters({ dateTo: e.target.value })}
+          <input type="date" aria-label="结束日期" value={dateTo} onChange={e => setFilters({ dateTo: e.target.value })}
             className="bg-white/5 border border-white/10 rounded px-2 py-1 text-xs focus:outline-none focus:border-tan/50" />
         </div>
-        <select value={status} onChange={e => setFilters({ status: e.target.value })}
+        <select aria-label="状态筛选" value={status} onChange={e => setFilters({ status: e.target.value })}
           className="bg-white/5 border border-white/10 rounded px-2 py-1 text-xs focus:outline-none">
           <option value="">全部状态</option>
           <option value="active">进行中</option>
@@ -156,7 +157,7 @@ export default function AdminTickets() {
           <option value="paid">已结账</option>
           <option value="canceled">已取消</option>
         </select>
-        <select value={techId} onChange={e => setFilters({ techId: e.target.value })}
+        <select aria-label="技师筛选" value={techId} onChange={e => setFilters({ techId: e.target.value })}
           className="bg-white/5 border border-white/10 rounded px-2 py-1 text-xs focus:outline-none">
           <option value="">全部技师</option>
           {technicians.map((t: any) => (
@@ -216,7 +217,12 @@ export default function AdminTickets() {
                 <td className="p-3 text-center">
                   <span className={`text-xs ${statusColor(t.status)}`}>{statusLabel(t.status)}</span>
                 </td>
-                <td className="p-3 text-white/40 text-xs">{t.payment_method || '-'}</td>
+                <td className="p-3 text-white/40 text-xs">
+                  {t.fulfillment === 'self' && (
+                    <span className="mr-1 px-1 py-0.5 rounded bg-tan/15 text-tan text-[10px]">自提</span>
+                  )}
+                  {t.payment_method || '-'}
+                </td>
               </tr>
             ))}
           </tbody>

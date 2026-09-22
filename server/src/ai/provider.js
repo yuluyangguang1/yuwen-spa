@@ -16,8 +16,11 @@
 
 import fs from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const CONFIG_PATH = path.join(process.cwd(), 'db', 'ai-config.json')
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const ROOT = path.resolve(__dirname, '..', '..')
+const CONFIG_PATH = path.join(ROOT, 'db', 'ai-config.json')
 
 // 默认配置
 const DEFAULTS = {

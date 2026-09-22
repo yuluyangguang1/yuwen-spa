@@ -1,76 +1,94 @@
 // 数据库自动备份
 //
+// 使用 SQLite 的 VACUUM INTO 生成一致性备份（WAL 安全），
+// 失败时回退到同步 copyFile（先 checkpoint）。
+//
 // 每小时自动备份一次，保留最近 7 天（168 个备份）。
 // 备份文件存在 db/backups/ 目录，格式：yuwen_2026-05-23T14.db
-// 老板只需拷贝 db/ 整个目录就能迁移数据。
 
 import fs from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const BACKUP_DIR = path.join(process.cwd(), 'db', 'backups')
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const ROOT = path.resolve(__dirname, '..', '..')
+const BACKUP_DIR = path.join(ROOT, 'db', 'backups')
 const MAX_BACKUPS = 168  // 7 天 × 24 小时
 
-let dbPath = null
+let dbHandle = null
 
 export function initBackup(db) {
-  // 获取数据库文件路径
-  dbPath = path.join(process.cwd(), 'db', 'yuwen.db')
+  dbHandle = db
   fs.mkdirSync(BACKUP_DIR, { recursive: true })
 
-  // 立即备份一次
-  doBackup()
+  // 启动 10 秒后再做首次备份，避免拖慢冷启动
+  const bootTimer = setTimeout(() => doBackup(), 10_000)
+  bootTimer.unref?.()
 
-  // 每小时备份
-  setInterval(doBackup, 60 * 60 * 1000)
+  const interval = setInterval(doBackup, 60 * 60 * 1000)
+  interval.unref?.()
 
-  console.log('[backup] 自动备份已启动（每小时，保留 7 天）')
+  console.log('[backup] 自动备份已启动（每小时，保留 7 天，VACUUM INTO）')
 }
 
-function doBackup() {
-  if (!dbPath || !fs.existsSync(dbPath)) return
-
-  const ts = new Date().toISOString().replace(/:/g, '-').slice(0, 16)
-  const dest = path.join(BACKUP_DIR, `yuwen_${ts}.db`)
-
+function listBackupFiles() {
   try {
-    fs.copyFileSync(dbPath, dest)
-    cleanup()
-  } catch (e) {
-    console.error('[backup] 备份失败:', e.message)
-  }
-}
-
-function cleanup() {
-  try {
-    const files = fs.readdirSync(BACKUP_DIR)
+    return fs.readdirSync(BACKUP_DIR)
       .filter(f => f.startsWith('yuwen_') && f.endsWith('.db'))
       .sort()
       .reverse()
+  } catch {
+    return []
+  }
+}
 
-    // 保留最新 MAX_BACKUPS 个，删除多余的
+function cleanupSync() {
+  try {
+    const files = listBackupFiles()
     for (let i = MAX_BACKUPS; i < files.length; i++) {
-      fs.unlinkSync(path.join(BACKUP_DIR, files[i]))
+      try { fs.unlinkSync(path.join(BACKUP_DIR, files[i])) } catch (_) {}
     }
   } catch (_) {}
+}
+
+/**
+ * 一致性备份：VACUUM INTO（含 WAL 中已提交数据，单文件）
+ */
+function doBackup() {
+  if (!dbHandle) return
+  try {
+    const ts = new Date().toISOString().replace(/:/g, '-').slice(0, 16)
+    const dest = path.join(BACKUP_DIR, `yuwen_${ts}.db`)
+    dbHandle.prepare(`VACUUM INTO ?`).run(dest)
+    cleanupSync()
+  } catch (e) {
+    // 回退：checkpoint 后 copy
+    try {
+      dbHandle.prepare(`PRAGMA wal_checkpoint(TRUNCATE)`).run()
+      const src = path.join(ROOT, 'db', 'yuwen.db')
+      if (fs.existsSync(src)) {
+        const ts = new Date().toISOString().replace(/:/g, '-').slice(0, 16)
+        fs.copyFileSync(src, path.join(BACKUP_DIR, `yuwen_${ts}.db`))
+        cleanupSync()
+      }
+    } catch (e2) {
+      console.error('[backup] 备份失败:', e2.message)
+    }
+  }
 }
 
 // 手动触发备份（供 API 调用）
 export function manualBackup() {
   doBackup()
-  const files = fs.readdirSync(BACKUP_DIR)
-    .filter(f => f.startsWith('yuwen_') && f.endsWith('.db'))
-    .sort().reverse()
+  const files = listBackupFiles()
   return { ok: true, count: files.length, latest: files[0] || null }
 }
 
 // 获取备份列表
 export function listBackups() {
-  const files = fs.readdirSync(BACKUP_DIR)
-    .filter(f => f.startsWith('yuwen_') && f.endsWith('.db'))
-    .sort().reverse()
-  return files.map(f => ({
-    name: f,
-    size: fs.statSync(path.join(BACKUP_DIR, f)).size,
-    time: fs.statSync(path.join(BACKUP_DIR, f)).mtime,
-  }))
+  return listBackupFiles().map(f => {
+    const full = path.join(BACKUP_DIR, f)
+    const st = fs.statSync(full)
+    return { name: f, size: st.size, time: st.mtime }
+  })
 }

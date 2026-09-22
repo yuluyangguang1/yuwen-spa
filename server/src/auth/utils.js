@@ -29,7 +29,10 @@ export function hashPassword(password) {
 export function verifyPassword(password, stored) {
   const [salt, hash] = stored.split(':')
   const test = crypto.scryptSync(password, salt, 64).toString('hex')
-  return test === hash
+  const a = Buffer.from(test, 'hex')
+  const b = Buffer.from(hash, 'hex')
+  if (a.length !== b.length) return false
+  return crypto.timingSafeEqual(a, b)
 }
 
 // ── JWT（HMAC-SHA256，零依赖）──────────────────────
@@ -70,7 +73,9 @@ export function verifyToken(token) {
       .update(`${header}.${body}`)
       .digest('base64url')
 
-    if (sig !== expected) return null
+    const a = Buffer.from(sig)
+    const b = Buffer.from(expected)
+    if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null
 
     const payload = JSON.parse(Buffer.from(body, 'base64url').toString())
     if (payload.exp < Date.now()) return null

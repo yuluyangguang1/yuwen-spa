@@ -1,7 +1,7 @@
 // 登录页面
 // 足韵暗色风格，简洁表单
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { LogIn } from 'lucide-react'
@@ -15,12 +15,12 @@ export default function Login() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
-  // 已登录则跳转
-  if (user) {
+  // 已登录则跳转（useEffect，避免渲染期间副作用）
+  useEffect(() => {
+    if (!user) return
     const redirect = user.role === 'admin' ? '/admin' : user.role === 'pos' ? '/pos' : '/tech'
     navigate(redirect, { replace: true })
-    return null
-  }
+  }, [user, navigate])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -48,8 +48,9 @@ export default function Login() {
         {/* 登录表单 */}
         <form onSubmit={handleSubmit} className="glass-card p-6 space-y-4">
           <div>
-            <label className="block text-xs text-white/40 mb-1.5">用户名</label>
+            <label htmlFor="login-username" className="block text-xs text-white/40 mb-1.5">用户名</label>
             <input
+              id="login-username"
               type="text"
               value={username}
               onChange={e => setUsername(e.target.value)}
@@ -57,23 +58,28 @@ export default function Login() {
               placeholder="输入用户名"
               autoFocus
               autoComplete="username"
+              aria-describedby={error ? 'login-error' : undefined}
+              aria-invalid={error ? true : undefined}
             />
           </div>
 
           <div>
-            <label className="block text-xs text-white/40 mb-1.5">密码</label>
+            <label htmlFor="login-password" className="block text-xs text-white/40 mb-1.5">密码</label>
             <input
+              id="login-password"
               type="password"
               value={password}
               onChange={e => setPassword(e.target.value)}
               className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2.5 text-sm text-white placeholder-white/20 focus:outline-none focus:border-tan/50"
               placeholder="输入密码"
               autoComplete="current-password"
+              aria-describedby={error ? 'login-error' : undefined}
+              aria-invalid={error ? true : undefined}
             />
           </div>
 
           {error && (
-            <p className="text-red-400 text-xs text-center">{error}</p>
+            <p id="login-error" role="alert" className="text-red-400 text-xs text-center">{error}</p>
           )}
 
           <button

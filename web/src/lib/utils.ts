@@ -14,6 +14,7 @@ export function statusLabel(s: string) {
     idle: '空闲', working: '服务中', break: '休息', off: '下班',
     pending: '待开始', active: '进行中', completed: '待结账', paid: '已结账', canceled: '已取消',
     occupied: '使用中',
+    onsite: '到店', self: '自提',
   }
   return map[s] || s
 }

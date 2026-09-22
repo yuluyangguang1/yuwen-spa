@@ -15,19 +15,27 @@ import { TechProfile } from '@/components/TechProfile'
 export default function GuestView() {
   const { roomId } = useParams()
 
-  const { data: room } = useQuery({
-    queryKey: ['room', roomId],
-    queryFn: () => get('/api/rooms').then((list: any[]) => list.find(r => r.id === roomId) || null),
+  const { data: room, isLoading: roomLoading } = useQuery({
+    queryKey: ['guest-room', roomId],
+    queryFn: () => get(`/api/guest/rooms/${roomId}`),
   })
 
   const { data: tickets = [] } = useQuery({
-    queryKey: ['tickets-today'],
-    queryFn: () => get('/api/tickets/today'),
+    queryKey: ['guest-tickets', roomId],
+    queryFn: () => get(`/api/guest/tickets?room_id=${roomId}`),
     refetchInterval: 5000,
   })
 
   // 当前房间正在进行的钟
   const activeTicket = tickets.find((t: any) => t.room_id === roomId && t.status === 'active')
+
+  if (roomLoading) {
+    return (
+      <div className="min-h-[100dvh] flex items-center justify-center p-4">
+        <div className="text-center text-white/40 animate-pulse text-sm">加载中...</div>
+      </div>
+    )
+  }
 
   if (!room) {
     return (
@@ -40,9 +48,26 @@ export default function GuestView() {
     )
   }
 
-  // 房间有正在进行的服务 → 显示服务进度
+  // 房间有正在进行或刚下单的服务 → 显示服务进度
   if (activeTicket) {
     return <GuestActiveView ticket={activeTicket} room={room} />
+  }
+
+  // 有顾客自助下单待确认（pending）
+  const pendingTicket = tickets.find((t: any) => t.room_id === roomId && t.status === 'pending')
+  if (pendingTicket) {
+    return (
+      <div className="min-h-[100dvh] flex items-center justify-center p-4">
+        <div className="text-center space-y-4">
+          <div className="w-16 h-16 mx-auto rounded-full bg-tan/20 flex items-center justify-center animate-pulse">
+            <Clock size={32} className="text-tan" />
+          </div>
+          <div className="text-lg text-tan">下单成功，等待接单</div>
+          <div className="text-sm text-white/40">{pendingTicket.service_name || '服务'}</div>
+          <div className="text-xs text-white/20">前台确认后将为您开钟</div>
+        </div>
+      </div>
+    )
   }
 
   // 房间空闲 → 选技师 + 选项目
@@ -59,18 +84,18 @@ function GuestSelectView({ room }: { room: any }) {
   const [previewTechId, setPreviewTechId] = useState<string | null>(null)
 
   const { data: technicians = [] } = useQuery({
-    queryKey: ['technicians'],
-    queryFn: () => get('/api/technicians?active=1'),
+    queryKey: ['guest-technicians'],
+    queryFn: () => get('/api/guest/technicians?active=1&pageSize=500'),
   })
 
   const { data: services = [] } = useQuery({
-    queryKey: ['services'],
-    queryFn: () => get('/api/services?active=1'),
+    queryKey: ['guest-services'],
+    queryFn: () => get('/api/guest/services?active=1&pageSize=500'),
   })
 
   const { data: shop } = useQuery({
-    queryKey: ['shop'],
-    queryFn: () => get('/api/shops/current'),
+    queryKey: ['guest-shop'],
+    queryFn: () => get('/api/guest/shops/current'),
   })
 
   // 按 AI 评分排序（高分靠前）
@@ -79,16 +104,16 @@ function GuestSelectView({ room }: { room: any }) {
   const busyTechs = sortedTechs.filter((t: any) => t.status === 'working')
 
   const createTicket = useMutation({
-    mutationFn: () => post('/api/tickets', {
+    mutationFn: () => post('/api/guest/tickets', {
       shop_id: shop?.id,
       service_id: selectedService?.id,
       technician_id: selectedTech?.id || undefined,
       room_id: room.id,
-      auto_start: true,
+      auto_start: false,
     }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tickets-today'] })
-      queryClient.invalidateQueries({ queryKey: ['technicians'] })
+      queryClient.invalidateQueries({ queryKey: ['guest-tickets'] })
+      queryClient.invalidateQueries({ queryKey: ['guest-technicians'] })
       setSuccess(true)
     },
   })
@@ -287,26 +312,25 @@ function GuestActiveView({ ticket, room }: { ticket: any; room: any }) {
   const [showAdd, setShowAdd] = useState(false)
 
   const { data: services = [] } = useQuery({
-    queryKey: ['services'],
-    queryFn: () => get('/api/services?active=1'),
+    queryKey: ['guest-services'],
+    queryFn: () => get('/api/guest/services?active=1&pageSize=500'),
   })
 
   const { data: shop } = useQuery({
-    queryKey: ['shop'],
-    queryFn: () => get('/api/shops/current'),
+    queryKey: ['guest-shop'],
+    queryFn: () => get('/api/guest/shops/current'),
   })
 
   const addTicket = useMutation({
-    mutationFn: (serviceId: string) => post('/api/tickets', {
+    mutationFn: (serviceId: string) => post('/api/guest/tickets', {
       shop_id: shop?.id,
       service_id: serviceId,
       technician_id: ticket.technician_id,
       room_id: room.id,
-      customer_id: ticket.customer_id,
       auto_start: true,
     }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['tickets-today'] })
+      queryClient.invalidateQueries({ queryKey: ['guest-tickets'] })
       setShowAdd(false)
     },
   })

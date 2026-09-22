@@ -1,17 +1,21 @@
 import { useQuery } from '@tanstack/react-query'
 import { get } from '@/lib/api'
 import { formatMoney } from '@/lib/utils'
+import { useAuth } from '@/lib/auth'
 
 export default function TechHistory() {
+  const { user } = useAuth()
   const { data: technicians = [] } = useQuery({
     queryKey: ['technicians'],
-    queryFn: () => get('/api/technicians'),
+    queryFn: () => get('/api/technicians?pageSize=500'),
   })
-  const currentTech = technicians[0]
+  const currentTech = user?.technician_id
+    ? technicians.find((t: any) => t.id === user.technician_id)
+    : technicians[0]
 
   const { data: tickets = [] } = useQuery({
     queryKey: ['tickets-all'],
-    queryFn: () => get(`/api/tickets?technician_id=${currentTech?.id}&limit=50`),
+    queryFn: () => get(`/api/tickets?technician_id=${currentTech?.id}&pageSize=50`),
     enabled: !!currentTech,
   })
 

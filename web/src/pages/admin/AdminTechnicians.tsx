@@ -16,7 +16,7 @@ export default function AdminTechnicians() {
     updateMut,
   } = useSimpleCRUD({
     queryKey: ['technicians'],
-    queryFn: () => get('/api/technicians'),
+    queryFn: () => get('/api/technicians?pageSize=500'),
     createFn: (data: any) => post('/api/technicians', data),
     updateFn: ({ id, ...data }: any) => put(`/api/technicians/${id}`, data),
   })

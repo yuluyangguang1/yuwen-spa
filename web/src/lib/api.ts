@@ -11,9 +11,12 @@ export async function api<T = any>(path: string, opts?: RequestInit): Promise<T>
   // 设置超时
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT)
 
+  // 无 body 的请求不要带 Content-Type，否则 Fastify JSON parser 可能对空 body 报错
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
     ...(opts?.headers as Record<string, string> || {}),
+  }
+  if (opts?.body != null && !headers['Content-Type']) {
+    headers['Content-Type'] = 'application/json'
   }
   if (token && !headers['Authorization']) {
     headers['Authorization'] = `Bearer ${token}`
@@ -34,14 +37,21 @@ export async function api<T = any>(path: string, opts?: RequestInit): Promise<T>
       sessionStorage.setItem('yuwen_redirect', location.pathname + location.search)
       // 派发自定义事件，由 main.tsx 中的路由监听器处理 SPA 导航
       window.dispatchEvent(new CustomEvent('yuwen:401'))
-      return {} as T
+      // 返回 undefined，让调用方的 `data = []` 默认值生效
+      return undefined as T
     }
 
     if (!res.ok) {
       const body = await res.json().catch(() => ({}))
       throw new Error(body.error || `HTTP ${res.status}`)
     }
-    return res.json()
+
+    const json = await res.json().catch(() => undefined)
+    // 后端列表接口统一返回 { data, total, page, pageSize }，这里解包 data
+    if (json && typeof json === 'object' && !Array.isArray(json) && 'data' in json) {
+      return (json as any).data as T
+    }
+    return json as T
   } catch (err) {
     clearTimeout(timeoutId)
     if (err instanceof DOMException && err.name === 'AbortError') {

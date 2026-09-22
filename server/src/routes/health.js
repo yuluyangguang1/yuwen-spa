@@ -12,6 +12,7 @@ export async function registerHealthRoutes(fastify) {
     version: '0.1.0',
   }))
 
+  // 系统信息：登录后可见（面板展示用），不再匿名暴露内网拓扑
   fastify.get('/api/system', async (req) => ({
     ok: true,
     hostname: os.hostname(),

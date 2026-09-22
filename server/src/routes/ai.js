@@ -12,6 +12,7 @@ import {
 import {
   aiScoreTechnician, aiBusinessReport, aiChat
 } from '../ai/agent.js'
+import { checkRateLimit } from '../auth/ratelimit.js'
 
 export async function registerAIRoutes(fastify) {
   const db = fastify.db
@@ -55,9 +56,12 @@ export async function registerAIRoutes(fastify) {
     }
   })
 
-  // 测试 AI 连接（先检查 Hermes 是否在线）
+  // 测试 AI 连接（先检查 Hermes 是否在线）—— 仅 admin，避免产生无关 LLM 费用
   fastify.post('/api/ai/test', async (req, reply) => {
     try {
+      if (req.user?.role !== 'admin') return reply.code(403).send({ error: '仅管理员' })
+      const rl = checkRateLimit(`${req.ip}|ai-test`, { maxAttempts: 10, windowMs: 5 * 60 * 1000 })
+      if (!rl.ok) return reply.code(429).send({ error: `测试过于频繁，请 ${rl.retryAfter} 秒后重试` })
       const status = await checkHermesStatus()
       if (!status.online) {
         return reply.code(500).send({ ok: false, error: `Hermes Gateway 不在线 (${status.url})，请先启动 Hermes` })
@@ -104,6 +108,8 @@ export async function registerAIRoutes(fastify) {
       if (!isAIEnabled()) {
         return reply.code(400).send({ error: 'AI 未启用，请先在后台 AI 设置中开启' })
       }
+      const rl = checkRateLimit(`${req.ip}|${req.user.sub}|ai-chat`, { maxAttempts: 20, windowMs: 5 * 60 * 1000 })
+      if (!rl.ok) return reply.code(429).send({ error: `AI 请求过于频繁，请 ${rl.retryAfter} 秒后重试` })
       const { message } = req.body || {}
       if (!message) return reply.code(400).send({ error: 'message required' })
 
@@ -115,9 +121,9 @@ export async function registerAIRoutes(fastify) {
 
       // 构建上下文：当日经营数据
       const today = startOfDay(Date.now())
-      const tickets = db.prepare(`SELECT * FROM tickets WHERE created_at>=?`).all(today)
+      const tickets = db.prepare(`SELECT * FROM tickets WHERE shop_id=? AND created_at>=?`).all(req.user.shop_id, today)
       const paid = tickets.filter(t => t.status === 'paid')
-      const techs = db.prepare(`SELECT name, number, level, status, ai_score FROM technicians WHERE active=1`).all()
+      const techs = db.prepare(`SELECT name, number, level, status, ai_score FROM technicians WHERE shop_id=? AND active=1`).all(req.user.shop_id)
 
       const context = {
         today: {
@@ -150,11 +156,12 @@ export async function registerAIRoutes(fastify) {
 
   fastify.post('/api/ai/score-technicians', async (req, reply) => {
     try {
+      if (req.user?.role !== 'admin') return reply.code(403).send({ error: '仅管理员' })
       if (!isAIEnabled()) {
         return reply.code(400).send({ error: 'AI 未启用' })
       }
 
-      const techs = db.prepare(`SELECT * FROM technicians WHERE active=1`).all()
+      const techs = db.prepare(`SELECT * FROM technicians WHERE shop_id=? AND active=1`).all(req.user.shop_id)
       const month = new Date().toISOString().slice(0, 7)
       const monthStart = new Date(month + '-01').getTime()
       const now = Date.now()
@@ -173,7 +180,7 @@ export async function registerAIRoutes(fastify) {
         // 解析 tags
         const parsedReviews = reviews.map(r => ({
           ...r,
-          tags: r.tags ? JSON.parse(r.tags) : [],
+          tags: parseJsonSafe(r.tags, []),
         }))
 
         try {
@@ -226,16 +233,16 @@ export async function registerAIRoutes(fastify) {
 
         const today = startOfDay(Date.now())
         const yesterday = startOfDay(Date.now() - 86400000)
-        const todayTickets = db.prepare(`SELECT * FROM tickets WHERE created_at>=? AND status='paid'`).all(today)
-        const yesterdayTickets = db.prepare(`SELECT * FROM tickets WHERE created_at>=? AND created_at<? AND status='paid'`).all(yesterday, today)
+        const todayTickets = db.prepare(`SELECT * FROM tickets WHERE shop_id=? AND created_at>=? AND status='paid'`).all(req.user.shop_id, today)
+        const yesterdayTickets = db.prepare(`SELECT * FROM tickets WHERE shop_id=? AND created_at>=? AND created_at<? AND status='paid'`).all(req.user.shop_id, yesterday, today)
 
         const todayRevenue = todayTickets.reduce((s, t) => s + t.price_cents, 0)
         const yesterdayRevenue = yesterdayTickets.reduce((s, t) => s + t.price_cents, 0)
         const revenueChange = yesterdayRevenue > 0 ? Math.round(((todayRevenue - yesterdayRevenue) / yesterdayRevenue) * 100) : 0
 
-        const techCount = db.prepare(`SELECT COUNT(*) AS c FROM technicians WHERE active=1`).get().c
-        const newCustomers = db.prepare(`SELECT COUNT(*) AS c FROM customers WHERE created_at>=?`).get(today).c
-        const topups = db.prepare(`SELECT COALESCE(SUM(amount_cents),0) AS total FROM wallet_transactions WHERE type='topup' AND created_at>=?`).get(today)
+        const techCount = db.prepare(`SELECT COUNT(*) AS c FROM technicians WHERE active=1 AND shop_id=?`).get(req.user.shop_id).c
+        const newCustomers = db.prepare(`SELECT COUNT(*) AS c FROM customers WHERE created_at>=? AND shop_id=?`).get(today, req.user.shop_id).c
+        const topups = db.prepare(`SELECT COALESCE(SUM(amount_cents),0) AS total FROM wallet_transactions WHERE type='topup' AND created_at>=? AND shop_id=?`).get(today, req.user.shop_id)
 
         const data = {
           revenue: todayRevenue,
@@ -264,4 +271,10 @@ function startOfDay(ts) {
   const d = new Date(ts)
   d.setHours(0, 0, 0, 0)
   return d.getTime()
+}
+
+function parseJsonSafe(raw, fallback) {
+  if (raw == null) return fallback
+  if (typeof raw !== 'string') return raw
+  try { return JSON.parse(raw) } catch { return fallback }
 }

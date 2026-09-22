@@ -1,19 +1,21 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { get, post, put } from '@/lib/api'
-import { Plus, X } from 'lucide-react'
+import { Plus, X, Printer } from 'lucide-react'
+import QRCode from 'qrcode'
 import { Field } from '@/components/Field'
 import { RoomCard } from '@/components/RoomCard'
 
 export default function AdminRooms() {
   const qc = useQueryClient()
   const [showQR, setShowQR] = useState<string | null>(null)
+  const [qrDataUrl, setQrDataUrl] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editItem, setEditItem] = useState<any>(null)
 
   const { data: rooms = [] } = useQuery({
     queryKey: ['rooms'],
-    queryFn: () => get('/api/rooms'),
+    queryFn: () => get('/api/rooms?pageSize=500'),
   })
   const shop_id = rooms[0]?.shop_id
 
@@ -35,19 +37,61 @@ export default function AdminRooms() {
   })
 
   const getLanHost = () => {
+    // 非本机访问：直接用当前 host（含端口）
     if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
       return window.location.host
     }
+    // 本机开发/管理：用局域网 IP + 实际服务端口，禁止回退到 5173
     const ip = system?.lanIPs?.find((ip: string) => ip.startsWith('192.168') || ip.startsWith('10.'))
       || system?.lanIPs?.[0]
-    if (ip) return `${ip}:${window.location.port || system?.port || 5173}`
-    return window.location.host
+    if (!ip) return window.location.host
+    const port = window.location.port || system?.port
+    return port ? `${ip}:${port}` : ip
   }
 
-  const getGuestUrl = (roomId: string) => `http://${getLanHost()}/guest/room/${roomId}`
-  const getQRUrl = (roomId: string) => {
-    const url = getGuestUrl(roomId)
-    return `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(url)}`
+  // system 未加载完不生成链接，避免用错误端口
+  const getGuestUrl = (roomId: string) =>
+    system ? `http://${getLanHost()}/guest/room/${roomId}` : ''
+
+  // 本地生成二维码（无外网依赖），data URL 可直接打印
+  useEffect(() => {
+    let cancelled = false
+    setQrDataUrl('')
+    if (!showQR) return
+    const url = getGuestUrl(showQR)
+    if (!url) return
+    QRCode.toDataURL(url, { width: 300, margin: 2, color: { dark: '#1a1a18', light: '#ffffff' } })
+      .then((dataUrl) => { if (!cancelled) setQrDataUrl(dataUrl) })
+      .catch(() => { if (!cancelled) setQrDataUrl('') })
+    return () => { cancelled = true }
+  }, [showQR, system])
+
+  const printLabel = () => {
+    const url = getGuestUrl(showQR || '')
+    const room = rooms.find((r: any) => r.id === showQR)
+    if (!qrDataUrl || !url) return
+    const win = window.open('', '_blank', 'width=380,height=520')
+    if (!win) return
+    win.document.write(`<!doctype html><html><head><title>${room?.number || ''}号房</title>
+<style>
+  body{font-family:system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#fff;color:#111}
+  .label{border:1px dashed #999;padding:24px 32px;text-align:center;max-width:280px}
+  .room{font-size:28px;font-weight:700;margin-bottom:4px}
+  .type{font-size:14px;color:#666;margin-bottom:16px}
+  img{width:220px;height:220px;display:block;margin:0 auto}
+  .hint{font-size:11px;color:#888;margin-top:12px;word-break:break-all}
+  .brand{font-size:12px;color:#999;margin-top:6px;letter-spacing:4px}
+</style></head><body>
+<div class="label">
+  <div class="room">${room?.number || ''}号房</div>
+  <div class="type">${room?.type || ''} · 顾客扫码自助下单</div>
+  <img src="${qrDataUrl}" alt="QR"/>
+  <div class="hint">扫码选技师 / 选项目</div>
+  <div class="brand">足韵</div>
+</div>
+<script>window.onload=function(){window.print();window.close()}</script>
+</body></html>`)
+    win.document.close()
   }
 
   return (
@@ -71,10 +115,19 @@ export default function AdminRooms() {
               </p>
             </div>
             <div className="flex justify-center">
-              <img src={getQRUrl(showQR)} alt="QR Code" className="w-48 h-48 rounded-lg bg-white p-2" />
+              {qrDataUrl ? (
+                <img src={qrDataUrl} alt="QR Code" className="w-48 h-48 rounded-lg bg-white p-2" />
+              ) : (
+                <div className="w-48 h-48 rounded-lg bg-white/5 flex items-center justify-center text-xs text-white/40">
+                  正在生成二维码...
+                </div>
+              )}
             </div>
             <div className="text-center text-[10px] text-white/30 break-all">{getGuestUrl(showQR)}</div>
-            <button onClick={() => window.print()} className="w-full bg-tan text-white py-2.5 rounded-lg text-sm">打印二维码</button>
+            <button onClick={printLabel} disabled={!qrDataUrl}
+              className="w-full flex items-center justify-center gap-1.5 bg-tan text-white py-2.5 rounded-lg text-sm disabled:opacity-40">
+              <Printer size={14} /> 打印二维码标签
+            </button>
           </div>
         </div>
       )}

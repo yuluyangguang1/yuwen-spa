@@ -13,7 +13,6 @@ import fastifyCors from '@fastify/cors'
 import fastifyStatic from '@fastify/static'
 import fastifyWebsocket from '@fastify/websocket'
 import fastifyCompress from '@fastify/compress'
-import fastifyFormbody from '@fastify/formbody'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import os from 'node:os'
@@ -22,6 +21,10 @@ import { initDatabase } from './db/init.js'
 import { registerRoutes } from './routes/index.js'
 import { registerRealtimeBus } from './realtime/bus.js'
 import { getLanIPs } from './lib/network.js'
+import { registerErrorHandler } from './lib/errors.js'
+import { LRUCache } from './lib/cache.js'
+import { registerScheduler } from './scheduler.js'
+import { initBackup } from './backup/index.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(__dirname, '..')
@@ -36,7 +39,8 @@ const fastify = Fastify({
   logger: {
     level: process.env.LOG_LEVEL || 'info',
   },
-  trustProxy: true,
+  // 局域网直连场景：仅信任私网/回环来源的 XFF，避免伪造 IP 绕过登录限流
+  trustProxy: ['loopback', 'linklocal', '10.0.0.0/8', '172.16.0.0/12', '192.168.0.0/16'],
   // 限制请求体大小，防止 DoS
   bodyLimit: 1024 * 1024, // 1 MB
   // 请求超时
@@ -56,7 +60,7 @@ fastify.addHook('onRequest', async (req, reply) => {
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data:",
     "font-src 'self' https://fonts.gstatic.com",
-    "connect-src 'self' ws://* wss://*",
+    "connect-src 'self' ws: wss:",
     "frame-ancestors 'none'",
   ].join('; '))
 })
@@ -66,6 +70,7 @@ fastify.addHook('onRequest', async (req, reply) => {
 // 同步 API（better-sqlite3 是同步的）所以可以放在 await 上面。
 const db = initDatabase(path.join(ROOT, 'db'))
 fastify.decorate('db', db)
+fastify.decorate('cache', new LRUCache(1000, 5 * 60 * 1000))
 
 // ─── 2. CORS ─────────────────────────────────────────────
 // 开发时前端在 5173 端口，需要跨域。生产时前端和后端同源，CORS 没用。
@@ -76,7 +81,48 @@ await fastify.register(fastifyCors, {
 })
 
 // ─── 3. 表单解析 ──────────────────────────────────────────
-await fastify.register(fastifyFormbody)
+// 不用 @fastify/formbody：下面的自定义解析器已覆盖 urlencoded，并保留 bodyRaw 供支付回调验签
+// 支付回调需要原始 body 做 HMAC 验签：保留 raw 字符串
+fastify.addContentTypeParser('application/x-www-form-urlencoded', { parseAs: 'string' }, (req, body, done) => {
+  try {
+    req.bodyRaw = String(body)
+    done(null, Object.fromEntries(new URLSearchParams(String(body))))
+  } catch (e) {
+    done(e)
+  }
+})
+
+// JSON 回调同样保留 raw
+fastify.addContentTypeParser('application/json', { parseAs: 'string' }, (req, body, done) => {
+  try {
+    req.bodyRaw = String(body)
+    if (body === '' || body == null) return done(null, {})
+    done(null, JSON.parse(body))
+  } catch (e) {
+    e.statusCode = 400
+    done(e, undefined)
+  }
+})
+
+// 微信回调为 XML：自定义解析器（仅支付回调路径使用）
+fastify.addContentTypeParser('application/xml', { parseAs: 'string' }, (req, body, done) => {
+  try {
+    const text = String(body)
+    const obj = {}
+    // 简单 key/value 提取（微信通知字段均为扁平结构）
+    const re = /<(\w+)><!\[CDATA\[(.*?)\]\]><\/\1>|<(\w+)>([^<]*)<\/\3>/g
+    let m
+    while ((m = re.exec(text)) !== null) {
+      const key = m[1] || m[3]
+      const val = m[2] !== undefined ? m[2] : m[4]
+      if (key) obj[key] = val
+    }
+    req.bodyRaw = text
+    done(null, obj)
+  } catch (e) {
+    done(e)
+  }
+})
 
 // ─── 4. 压缩 ─────────────────────────────────────────────
 await fastify.register(fastifyCompress, {
@@ -88,29 +134,21 @@ await fastify.register(fastifyCompress, {
 await fastify.register(fastifyWebsocket)
 registerRealtimeBus(fastify)
 
-// ─── 6. API 路由 ──────────────────────────────────────────
+// 6. API 路由 ──────────────────────────────────────
 await registerRoutes(fastify)
 
-// ─── 7. 全局错误处理 ──────────────────────────────────────
-fastify.setErrorHandler((err, req, reply) => {
-  // 记录错误
-  fastify.log.error({ err, url: req.url, method: req.method }, 'request error')
+// 7. 结构化错误处理 ──────────────────────────────
+registerErrorHandler(fastify)
 
-  // 已经是 404 且是 API 路由
-  if (err.statusCode === 404 && req.url.startsWith('/api/')) {
-    return reply.code(404).send({ error: 'API not found' })
-  }
+// 8. 定时任务调度器 ──────────────────────────────
+registerScheduler(fastify)
 
-  // 429 限流错误
-  if (err.statusCode === 429) {
-    return reply.code(429).send({ error: '请求过于频繁，请稍后再试' })
-  }
-
-  // 默认 500
-  return reply.code(err.statusCode || 500).send({
-    error: process.env.NODE_ENV === 'production' ? '服务器内部错误' : err.message,
-  })
-})
+// 8.5 自动备份（每小时 VACUUM INTO，保留 7 天）
+try {
+  initBackup(db)
+} catch (e) {
+  console.error('[backup] 初始化失败:', e.message)
+}
 
 // 404 兜底（SPA fallback）
 fastify.setNotFoundHandler(async (req, reply) => {
@@ -132,32 +170,37 @@ fastify.setNotFoundHandler(async (req, reply) => {
 // 开发：public 可能不存在，访问根路径会落到 SPA fallback 提示去 5173。
 // static files served manually above to ensure cache headers are controlled
 if (fs.existsSync(publicDir)) {
-  // 手动服务静态资源，确保缓存头可控
-  fastify.get('/assets/*', async (req, reply) => {
-    const fileName = req.url.replace('/assets/', '')
-    const filePath = path.join(publicDir, 'assets', fileName)
-    if (!fs.existsSync(filePath)) return reply.code(404).send('Not found')
-    reply.header('Cache-Control', 'public, max-age=3600, immutable')
-    return reply.type(path.extname(fileName) === '.css' ? 'text/css' : 'application/javascript').send(fs.readFileSync(filePath))
-  })
+  const MIME = {
+    '.js': 'application/javascript', '.mjs': 'application/javascript', '.css': 'text/css',
+    '.html': 'text/html', '.json': 'application/json', '.png': 'image/png', '.jpg': 'image/jpeg',
+    '.jpeg': 'image/jpeg', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.webp': 'image/webp',
+    '.woff': 'font/woff', '.woff2': 'font/woff2', '.txt': 'text/plain; charset=utf-8',
+  }
+  // 防路径穿越：解析后必须仍在 publicDir 内
+  const safePublicFile = (rel) => {
+    const filePath = path.resolve(publicDir, rel)
+    if (filePath !== publicDir && !filePath.startsWith(publicDir + path.sep)) return null
+    return filePath
+  }
+  const sendPublicFile = async (req, reply, rel, cacheControl) => {
+    const filePath = safePublicFile(rel)
+    if (!filePath || !fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+      return reply.code(404).send('Not found')
+    }
+    if (cacheControl) reply.header('Cache-Control', cacheControl)
+    const ext = path.extname(filePath).toLowerCase()
+    return reply.type(MIME[ext] || 'application/octet-stream').send(fs.readFileSync(filePath))
+  }
+
+  // 手动服务静态资源，确保缓存头可控（路由参数由 Fastify 做 URL 解码）
+  fastify.get('/assets/*', async (req, reply) =>
+    sendPublicFile(req, reply, path.join('assets', req.params['*']), 'public, max-age=3600, immutable'))
   // index.html 不缓存
-  fastify.get('/', async (req, reply) => {
-    reply.header('Cache-Control', 'no-cache, no-store, must-revalidate')
-    reply.header('Pragma', 'no-cache')
-    reply.header('Expires', '0')
-    const htmlPath = path.join(publicDir, 'index.html')
-    return reply.type('text/html').send(fs.readFileSync(htmlPath))
-  })
+  fastify.get('/', async (req, reply) =>
+    sendPublicFile(req, reply, 'index.html', 'no-cache, no-store, must-revalidate'))
   // 其他静态资源（icons/manifest/sw.js）不缓存
-  fastify.get('/icons/*', async (req, reply) => {
-    const fileName = req.url.replace('/icons/', '')
-    const filePath = path.join(publicDir, 'icons', fileName)
-    if (!fs.existsSync(filePath)) return reply.code(404).send('Not found')
-    reply.header('Cache-Control', 'no-cache')
-    const ext = path.extname(fileName)
-    const mime = ext === '.png' ? 'image/png' : ext === '.svg' ? 'image/svg+xml' : 'application/octet-stream'
-    return reply.type(mime).send(fs.readFileSync(filePath))
-  })
+  fastify.get('/icons/*', async (req, reply) =>
+    sendPublicFile(req, reply, path.join('icons', req.params['*']), 'no-cache'))
   fastify.get('/manifest.json', async (req, reply) => {
     reply.header('Cache-Control', 'no-cache')
     return reply.type('application/json').send(fs.readFileSync(path.join(publicDir, 'manifest.json')))

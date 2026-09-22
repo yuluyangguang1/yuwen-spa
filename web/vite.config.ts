@@ -40,13 +40,10 @@ export default defineConfig({
     sourcemap: false, // 生产环境关闭
     // CSS 代码分割
     cssCodeSplit: true,
-    // 压缩
+    // 压缩：esbuild minify 时 terserOptions 是 no-op，用 esbuild 自己的 drop
     minify: 'esbuild',
-    terserOptions: {
-      compress: {
-        drop_console: true,
-        drop_debugger: true,
-      },
+    esbuild: {
+      drop: ['console', 'debugger'],
     },
   },
   // 优化依赖预构建

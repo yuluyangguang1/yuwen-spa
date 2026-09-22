@@ -8,56 +8,59 @@
 // 其余 /api/* 都需要 Bearer token
 
 import { extractToken } from '../routes/auth.js'
+import { AuthError, PermissionError } from '../lib/errors.js'
 
 const PUBLIC_PATHS = [
   '/api/health',
-  '/api/system',
   '/api/auth/login',
-  '/api/realtime',   // WebSocket 排钟同步，无需 token
+  '/api/realtime',   // WebSocket 升级在 bus.js 内自校验 JWT（HTTP 层放行）
+  // 支付网关服务器回调（验签在路由内完成）
+  '/api/payment/wechat/notify',
+  '/api/payment/alipay/notify',
 ]
 
 function isPublic(path) {
   if (PUBLIC_PATHS.includes(path)) return true
-  if (path.startsWith('/api/reviews')) return true   // 顾客评价（扫码后）
   if (path.startsWith('/api/guest')) return true      // 顾客端入口
+  // 技师主页：顾客扫码查看（路由内对未登录做脱敏）
+  if (/^\/api\/technicians\/[^/]+\/profile$/.test(path)) return true
+  // 评价：仅 GET 公开（扫码查看）；POST 提交必须登录
+  if (path.startsWith('/api/reviews') ) return false
   return false
 }
 
 export async function registerAuthHook(fastify) {
   fastify.addHook('onRequest', async (req, reply) => {
-    // 只保护 /api/* 路由
     if (!req.url.startsWith('/api/')) return
+    const path = req.url.split('?')[0]
+    if (isPublic(path)) return
 
-    // 白名单放行
-    if (isPublic(req.url.split('?')[0])) return
-
-    // POST /api/reviews 需要鉴权（顾客评价需验证身份）
-    if (req.url.startsWith('/api/reviews') && req.method === 'POST') {
-      try {
-        const payload = extractToken(req)
-        if (!payload) return reply.code(401).send({ error: '请先登录' })
-        req.user = payload
-      } catch (e) {
-        req.log.error(e)
-        return reply.code(401).send({ error: '令牌无效' })
-      }
-      return
-    }
+    // GET /api/reviews 公开（匿名顾客查看评价墙）
+    if (path.startsWith('/api/reviews') && req.method === 'GET') return
 
     try {
       const payload = extractToken(req)
-      if (!payload) {
-        return reply.code(401).send({ error: '请先登录' })
-      }
+      if (!payload) throw new AuthError('请先登录')
 
-      // 把用户信息挂到 request 上，后续路由可以用
-      req.user = payload
+      // 回查用户：token 有效但账号被禁用/删除/改角色时立即失效
+      const user = fastify.db.prepare(
+        `SELECT id, role, shop_id, technician_id, active FROM users WHERE id=?`
+      ).get(payload.sub)
+      if (!user || user.active !== 1) throw new AuthError('账号已禁用或不存在')
+
+      req.user = {
+        ...payload,
+        role: user.role,          // 以数据库为准，旧 admin token 降权后失效
+        shop_id: user.shop_id,
+        technician_id: user.technician_id,
+      }
       if (!req.user.shop_id) {
-        return reply.code(401).send({ error: '令牌无效：缺少 shop_id' })
+        throw new AuthError('令牌无效：缺少 shop_id')
       }
     } catch (e) {
+      if (e.code && e.statusCode) throw e
       req.log.error(e)
-      return reply.code(401).send({ error: '令牌无效' })
+      throw new AuthError('令牌无效')
     }
   })
 }

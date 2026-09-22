@@ -30,6 +30,7 @@ export function useCRUD<T = any[]>({
     open: false, onConfirm: () => {}, message: '',
   })
 
+  // api.ts 已统一解包 { data, total, page, pageSize }，此处直接使用
   const { data, isLoading } = useQuery({
     queryKey,
     queryFn,
@@ -101,6 +102,7 @@ export function useSimpleCRUD<T = any[]>({
     open: false, onConfirm: () => {}, message: '',
   })
 
+  // api.ts 已统一解包 { data, total, page, pageSize }，此处直接使用
   const { data, isLoading } = useQuery({
     queryKey,
     queryFn,

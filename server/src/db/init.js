@@ -143,6 +143,7 @@ CREATE TABLE IF NOT EXISTS tickets (
   room_id         TEXT REFERENCES rooms(id),
   service_id      TEXT NOT NULL REFERENCES services(id),
   status          TEXT NOT NULL DEFAULT 'pending', -- pending/active/completed/paid/canceled
+  fulfillment     TEXT NOT NULL DEFAULT 'onsite',  -- onsite=到店服务, self=扫码自助/自提
   price_cents     INTEGER NOT NULL,    -- 落单价（可能因促销和定价不同）
   commission_cents INTEGER NOT NULL DEFAULT 0,  -- 该单技师提成
   started_at      INTEGER,
@@ -287,6 +288,14 @@ const MIGRATIONS = [
   }},
   { version: 3, up: (db) => {
     db.exec(`ALTER TABLE technicians ADD COLUMN webhook_url TEXT`)
+  }},
+  { version: 4, up: (db) => {
+    // 自提/自助下单：onsite=到店服务（默认），self=顾客扫码自助下单（自提）
+    try {
+      db.exec(`ALTER TABLE tickets ADD COLUMN fulfillment TEXT NOT NULL DEFAULT 'onsite'`)
+    } catch (e) {
+      if (!String(e.message).includes('duplicate column')) throw e
+    }
   }},
 ]
 

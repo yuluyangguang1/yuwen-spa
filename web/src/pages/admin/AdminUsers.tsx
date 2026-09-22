@@ -26,11 +26,10 @@ export default function AdminUsers() {
     message: string
   }>({ open: false, onConfirm: () => {}, message: '' })
 
-  const { data } = useQuery({
+  const { data: users = [] } = useQuery({
     queryKey: ['users'],
-    queryFn: () => get<{ users: any[] }>('/api/users'),
+    queryFn: () => get<any[]>('/api/users?pageSize=500'),
   })
-  const users = data?.users || []
 
   const invalidate = () => qc.invalidateQueries({ queryKey: ['users'] })
 

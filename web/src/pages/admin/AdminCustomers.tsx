@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { get, post, put } from '@/lib/api'
 import { formatMoney } from '@/lib/utils'
-import { Plus, Edit2, Search, Wallet, X } from 'lucide-react'
+import { Plus, Edit2, Search, Wallet, X, History } from 'lucide-react'
 import { Field } from '@/components/Field'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 
@@ -22,6 +22,7 @@ export default function AdminCustomers() {
   const [showForm, setShowForm] = useState(false)
   const [editItem, setEditItem] = useState<any>(null)
   const [topupItem, setTopupItem] = useState<any>(null)
+  const [historyItem, setHistoryItem] = useState<any>(null)
   const [confirmState, setConfirmState] = useState<{
     open: boolean
     onConfirm: () => void
@@ -32,7 +33,7 @@ export default function AdminCustomers() {
 
   const { data: customers = [] } = useQuery({
     queryKey: ['customers', debouncedSearch],
-    queryFn: () => get(`/api/customers${debouncedSearch ? `?q=${encodeURIComponent(debouncedSearch)}` : ''}`),
+    queryFn: () => get(`/api/customers?pageSize=500${debouncedSearch ? `&q=${encodeURIComponent(debouncedSearch)}` : ''}`),
   })
   const shop_id = customers[0]?.shop_id
 
@@ -99,6 +100,7 @@ export default function AdminCustomers() {
                     <div className="flex items-center justify-center gap-1">
                       <button onClick={() => setEditItem(c)} className="p-1.5 text-white/30 hover:text-tan rounded"><Edit2 size={14} /></button>
                       <button onClick={() => setTopupItem(c)} className="p-1.5 text-white/30 hover:text-moss rounded"><Wallet size={14} /></button>
+                      <button onClick={() => setHistoryItem(c)} title="余额流水" className="p-1.5 text-white/30 hover:text-tan rounded"><History size={14} /></button>
                     </div>
                   </td>
                 </tr>
@@ -119,6 +121,8 @@ export default function AdminCustomers() {
       {topupItem && <TopupForm customer={topupItem}
         onSubmit={(amount) => topupMut.mutate({ id: topupItem.id, amount })}
         onClose={() => setTopupItem(null)} error={topupMut.error?.message} loading={topupMut.isPending} />}
+
+      {historyItem && <WalletHistoryModal customer={historyItem} onClose={() => setHistoryItem(null)} />}
 
       {/* 自定义确认弹窗 */}
       <ConfirmDialog
@@ -193,6 +197,61 @@ function CustomerForm({ title, initial, shop_id, onSubmit, onClose, error, loadi
             {loading ? '保存中...' : '保存'}
           </button>
         </form>
+      </div>
+    </div>
+  )
+}
+
+function WalletHistoryModal({ customer, onClose }: { customer: any; onClose: () => void }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['wallet', customer.id],
+    queryFn: () => get(`/api/customers/${customer.id}/wallet`),
+  })
+  const rows: any[] = Array.isArray(data) ? data : (data as any)?.data || []
+
+  const typeLabel = (t: string) => t === 'topup' ? '充值' : t === 'consume' ? '消费' : t === 'refund' ? '退款' : t === 'adjust' ? '调整' : t
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="glass-card w-full max-w-lg max-h-[80vh] flex flex-col p-5 space-y-4" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="font-medium">余额流水</h2>
+            <p className="text-xs text-white/40 mt-0.5">
+              {customer.name || '未命名'} · 当前余额 <span className="text-tan">{formatMoney(customer.balance_cents)}</span>
+            </p>
+          </div>
+          <button onClick={onClose} className="text-white/30 hover:text-white"><X size={18} /></button>
+        </div>
+
+        {isLoading ? (
+          <div className="text-center text-white/30 text-sm py-8">加载中...</div>
+        ) : rows.length === 0 ? (
+          <div className="text-center text-white/30 text-sm py-8">暂无流水记录</div>
+        ) : (
+          <div className="overflow-y-auto -mx-1 space-y-1.5">
+            {rows.map((r: any) => (
+              <div key={r.id} className="flex items-center justify-between gap-3 px-1 py-2 rounded-lg hover:bg-white/[0.03]">
+                <div className="min-w-0">
+                  <div className="text-sm">
+                    <span className={r.amount_cents >= 0 ? 'text-moss' : 'text-cinnabar'}>{typeLabel(r.type)}</span>
+                    {r.service_name && <span className="text-white/40 text-xs ml-2">{r.service_name}</span>}
+                  </div>
+                  <div className="text-[10px] text-white/30">
+                    {new Date(r.created_at).toLocaleString('zh-CN')}
+                    {r.notes ? ` · ${r.notes}` : ''}
+                  </div>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <div className={`text-sm font-medium ${r.amount_cents >= 0 ? 'text-moss' : 'text-cinnabar'}`}>
+                    {r.amount_cents >= 0 ? '+' : ''}{formatMoney(r.amount_cents)}
+                  </div>
+                  <div className="text-[10px] text-white/30">余 {formatMoney(r.balance_after)}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

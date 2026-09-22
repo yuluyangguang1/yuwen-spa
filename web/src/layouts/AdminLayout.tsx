@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Outlet, NavLink } from 'react-router-dom'
-import { LayoutDashboard, Scissors, Users, DoorOpen, UserCircle, Receipt, Bot, Settings, LogOut, UserCog, Key } from 'lucide-react'
+import { LayoutDashboard, Scissors, Users, DoorOpen, UserCircle, Receipt, Bot, Settings, LogOut, UserCog, Key, BarChart3 } from 'lucide-react'
 import { useAuth } from '../lib/auth'
 import { ChangePasswordModal } from '../components/ChangePassword'
 
@@ -11,19 +11,15 @@ const navItems = [
   { to: '/admin/technicians', label: '技师', icon: Users },
   { to: '/admin/rooms', label: '房间', icon: DoorOpen },
   { to: '/admin/customers', label: '会员', icon: UserCircle },
+  { to: '/admin/reports', label: '报表', icon: BarChart3 },
   { to: '/admin/ai', label: 'AI 助手', icon: Bot },
   { to: '/admin/users', label: '账号', icon: UserCog },
   { to: '/admin/settings', label: '设置', icon: Settings },
 ]
 
-// 移动端底部导航（5 个核心 tab）
-const mobileNavItems = [
-  navItems[0], // 看板
-  navItems[1], // 钟单
-  navItems[2], // 项目
-  navItems[6], // AI 助手
-  navItems[8], // 设置
-]
+// 移动端底部导航（5 个核心 tab）— 按 to 路径引用，避免插入项后索引错位
+const MOBILE_TO = ['/admin', '/admin/tickets', '/admin/services', '/admin/reports', '/admin/settings']
+const mobileNavItems = MOBILE_TO.map(to => navItems.find(i => i.to === to)!).filter(Boolean)
 
 export default function AdminLayout() {
   const { user, logout } = useAuth()
@@ -37,9 +33,9 @@ export default function AdminLayout() {
           <h1 className="font-display text-xl text-tan">足韵</h1>
           <p className="text-xs text-white/30 mt-0.5">管理后台</p>
         </header>
-        <nav className="flex-1 px-2 space-y-0.5" aria-label="主导航">
+        <nav className="flex-1 px-2 space-y-0.5 overflow-y-auto" aria-label="主导航">
           <span className="text-[10px] text-white/30 uppercase mt-3 mb-1">运营</span>
-          {navItems.slice(0, 5).map(item => (
+          {navItems.slice(0, 6).map(item => (
             <NavLink
               key={item.to}
               to={item.to}
@@ -55,7 +51,7 @@ export default function AdminLayout() {
             </NavLink>
           ))}
           <span className="text-[10px] text-white/30 uppercase mt-3 mb-1">系统</span>
-          {navItems.slice(5).map(item => (
+          {navItems.slice(6).map(item => (
             <NavLink
               key={item.to}
               to={item.to}

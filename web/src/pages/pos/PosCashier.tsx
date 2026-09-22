@@ -12,7 +12,7 @@ export default function PosCashier() {
 
   const { data: tickets = [] } = useQuery({
     queryKey: ['tickets-today'],
-    queryFn: () => get('/api/tickets/today'),
+    queryFn: () => get('/api/tickets/today?pageSize=500'),
     refetchInterval: 5000,
   })
 
@@ -76,12 +76,15 @@ export default function PosCashier() {
             <div className="space-y-2">
               <div className="text-xs text-white/50">选择支付方式</div>
               <div className="grid grid-cols-2 gap-2">
-                <PayBtn icon={Banknote} label="现金" onClick={() => payMutation.mutate({ id: t.id, method: 'cash' })} />
-                <PayBtn icon={QrCode} label="微信" onClick={() => payMutation.mutate({ id: t.id, method: 'wechat' })} />
-                <PayBtn icon={CreditCard} label="支付宝" onClick={() => payMutation.mutate({ id: t.id, method: 'alipay' })} />
-                <PayBtn icon={Wallet} label="余额" onClick={() => payMutation.mutate({ id: t.id, method: 'balance' })} />
+                <PayBtn icon={Banknote} label="现金" disabled={payMutation.isPending} onClick={() => payMutation.mutate({ id: t.id, method: 'cash' })} />
+                <PayBtn icon={QrCode} label="微信" disabled={payMutation.isPending} onClick={() => payMutation.mutate({ id: t.id, method: 'wechat' })} />
+                <PayBtn icon={CreditCard} label="支付宝" disabled={payMutation.isPending} onClick={() => payMutation.mutate({ id: t.id, method: 'alipay' })} />
+                <PayBtn icon={Wallet} label="余额" disabled={payMutation.isPending} onClick={() => payMutation.mutate({ id: t.id, method: 'balance' })} />
               </div>
-              <button onClick={() => setPayingId(null)} className="w-full text-xs text-white/30 py-1">取消</button>
+              <button onClick={() => setPayingId(null)} disabled={payMutation.isPending}
+                className="w-full text-xs text-white/30 py-1 disabled:opacity-40">取消</button>
+              {payMutation.isPending && <div className="text-xs text-tan text-center">支付处理中...</div>}
+              {payMutation.isError && <div className="text-xs text-red-400 text-center">{payMutation.error?.message || '支付失败'}</div>}
             </div>
           ) : (
             <button
@@ -97,11 +100,12 @@ export default function PosCashier() {
   )
 }
 
-function PayBtn({ icon: Icon, label, onClick }: any) {
+function PayBtn({ icon: Icon, label, onClick, disabled }: any) {
   return (
     <button
       onClick={onClick}
-      className="glass-card py-3 flex flex-col items-center gap-1 text-xs hover:border-tan/30 active:scale-[0.97]"
+      disabled={disabled}
+      className="glass-card py-3 flex flex-col items-center gap-1 text-xs hover:border-tan/30 active:scale-[0.97] disabled:opacity-40 disabled:pointer-events-none"
     >
       <Icon size={18} className="text-white/60" />
       {label}

@@ -11,17 +11,17 @@ export async function registerAuthRoutes(fastify) {
   // ── 登录 ────────────────────────────────────────
   fastify.post('/api/auth/login', async (req, reply) => {
     try {
-      // Rate limiting：同一 IP 5 分钟内最多 10 次
+      // Rate limiting：同一 IP+用户名 5 分钟内最多 10 次（防伪造 XFF 绕过）
       const ip = req.ip || req.socket?.remoteAddress || 'unknown'
-      const rl = checkRateLimit(ip)
-      if (!rl.ok) {
-        return reply.code(429).send({ error: `登录尝试过于频繁，请 ${rl.retryAfter} 秒后重试` })
-      }
-
       const { username, password } = req.body || {}
 
       if (!username || !password) {
         return reply.code(400).send({ error: '请输入用户名和密码' })
+      }
+
+      const rl = checkRateLimit(`${ip}|${String(username).toLowerCase()}`)
+      if (!rl.ok) {
+        return reply.code(429).send({ error: `登录尝试过于频繁，请 ${rl.retryAfter} 秒后重试` })
       }
 
       // 验证密码复杂度（仅在修改密码时校验，登录时不限制）
@@ -59,7 +59,7 @@ export async function registerAuthRoutes(fastify) {
       }
     } catch (e) {
       req.log.error(e)
-      return reply.code(500).send({ error: e.message })
+      return reply.code(500).send({ error: '服务器内部错误' })
     }
   })
 
@@ -82,7 +82,7 @@ export async function registerAuthRoutes(fastify) {
       return { user }
     } catch (e) {
       req.log.error(e)
-      return reply.code(500).send({ error: e.message })
+      return reply.code(500).send({ error: '服务器内部错误' })
     }
   })
 
@@ -90,6 +90,12 @@ export async function registerAuthRoutes(fastify) {
   fastify.put('/api/auth/password', async (req, reply) => {
     try {
       const { oldPassword, newPassword } = req.body || {}
+
+      // 防旧密码暴力破解：同用户 15 分钟最多 10 次
+      const rl = checkRateLimit(`${req.ip}|${req.user.sub}|pwd`, { maxAttempts: 10, windowMs: 15 * 60 * 1000 })
+      if (!rl.ok) {
+        return reply.code(429).send({ error: `尝试过于频繁，请 ${rl.retryAfter} 秒后重试` })
+      }
 
       if (!oldPassword || !newPassword) {
         return reply.code(400).send({ error: '请输入旧密码和新密码' })
@@ -113,7 +119,7 @@ export async function registerAuthRoutes(fastify) {
       return { ok: true }
     } catch (e) {
       req.log.error(e)
-      return reply.code(500).send({ error: e.message })
+      return reply.code(500).send({ error: '服务器内部错误' })
     }
   })
 }

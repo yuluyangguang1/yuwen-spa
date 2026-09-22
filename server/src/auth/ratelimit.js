@@ -13,12 +13,12 @@ setInterval(() => {
   }
 }, 5 * 60000)
 
-export function checkRateLimit(ip, { maxAttempts = 10, windowMs = 5 * 60 * 1000 } = {}) {
+export function checkRateLimit(key, { maxAttempts = 10, windowMs = 5 * 60 * 1000 } = {}) {
   const now = Date.now()
-  const data = attempts.get(ip)
+  const data = attempts.get(key)
 
   if (!data || now > data.resetAt) {
-    attempts.set(ip, { count: 1, resetAt: now + windowMs })
+    attempts.set(key, { count: 1, resetAt: now + windowMs })
     return { ok: true, remaining: maxAttempts - 1 }
   }
 

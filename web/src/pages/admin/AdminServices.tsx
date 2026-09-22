@@ -21,7 +21,7 @@ export default function AdminServices() {
     closeConfirm,
   } = useSimpleCRUD({
     queryKey: ['services'],
-    queryFn: () => get('/api/services'),
+    queryFn: () => get('/api/services?pageSize=500'),
     createFn: (data: any) => post('/api/services', data),
     updateFn: ({ id, ...data }: any) => put(`/api/services/${id}`, data),
     deleteFn: (id: string) => del(`/api/services/${id}`),

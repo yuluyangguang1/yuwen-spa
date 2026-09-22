@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useLocation } from 'react-router-dom'
 import { get, post } from '@/lib/api'
 import { formatMoney } from '@/lib/utils'
 import { Check, User, MapPin, Scissors } from 'lucide-react'
@@ -8,23 +9,25 @@ import { Check, User, MapPin, Scissors } from 'lucide-react'
 // 流程：选项目 → 选技师 → 选房间 → 确认开钟
 export default function PosNewTicket() {
   const queryClient = useQueryClient()
+  const location = useLocation()
+  const preRoomId = (location.state as any)?.room_id || ''
   const [step, setStep] = useState<'service' | 'tech' | 'room' | 'confirm'>('service')
   const [serviceId, setServiceId] = useState('')
   const [techId, setTechId] = useState('')
-  const [roomId, setRoomId] = useState('')
+  const [roomId, setRoomId] = useState(preRoomId)
   const [success, setSuccess] = useState(false)
 
   const { data: services = [] } = useQuery({
     queryKey: ['services'],
-    queryFn: () => get('/api/services?active=1'),
+    queryFn: () => get('/api/services?active=1&pageSize=500'),
   })
   const { data: technicians = [] } = useQuery({
     queryKey: ['technicians'],
-    queryFn: () => get('/api/technicians?active=1'),
+    queryFn: () => get('/api/technicians?active=1&pageSize=500'),
   })
   const { data: rooms = [] } = useQuery({
     queryKey: ['rooms'],
-    queryFn: () => get('/api/rooms?active=1'),
+    queryFn: () => get('/api/rooms?active=1&pageSize=500'),
   })
   const { data: shop } = useQuery({
     queryKey: ['shop'],
@@ -115,7 +118,10 @@ export default function PosNewTicket() {
             {services.map((s: any) => (
               <button
                 key={s.id}
-                onClick={() => { setServiceId(s.id); setStep('tech') }}
+                onClick={() => {
+                  setServiceId(s.id)
+                  setStep('tech')
+                }}
                 className={`glass-card p-4 text-left transition-all active:scale-[0.97] ${
                   serviceId === s.id ? 'border-tan/40 bg-tan/10' : 'hover:border-white/15'
                 }`}
@@ -137,7 +143,7 @@ export default function PosNewTicket() {
             {idleTechs.map((t: any) => (
               <button
                 key={t.id}
-                onClick={() => { setTechId(t.id); setStep('room') }}
+                onClick={() => { setTechId(t.id); setStep(preRoomId ? 'confirm' : 'room') }}
                 className={`glass-card p-3 text-center transition-all active:scale-[0.97] ${
                   techId === t.id ? 'border-tan/40 bg-tan/10' : 'hover:border-white/15'
                 }`}
@@ -151,7 +157,7 @@ export default function PosNewTicket() {
             ))}
           </div>
           <button
-            onClick={() => setStep('room')}
+            onClick={() => setStep(preRoomId ? 'confirm' : 'room')}
             className="w-full glass-card p-3 text-center text-xs text-white/40 hover:text-white/60"
           >
             跳过，不指定技师

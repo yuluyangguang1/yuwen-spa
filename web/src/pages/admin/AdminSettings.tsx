@@ -77,12 +77,12 @@ function NotifyConfig() {
   const qc = useQueryClient()
   const { data: config } = useQuery({
     queryKey: ['notify-config'],
-    queryFn: () => get<{ webhookUrl: string; enabled: boolean }>('/api/notify/config'),
+    queryFn: () => get<any>('/api/notify/config'),
   })
 
   const [webhookUrl, setWebhookUrl] = useState<string | null>(null)
-  const currentUrl = webhookUrl ?? config?.webhookUrl ?? ''
-  const currentEnabled = config?.enabled ?? false
+  const currentUrl = webhookUrl ?? config?.channels?.wechat?.webhookUrl ?? ''
+  const currentEnabled = config?.channels?.wechat?.enabled ?? false
 
   const saveMut = useMutation({
     mutationFn: (data: any) => post('/api/notify/config', data),

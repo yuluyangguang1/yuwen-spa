@@ -17,15 +17,28 @@ export default function AdminDashboard() {
   useRealtime({
     'ticket:created': () => qc.invalidateQueries({ queryKey: ['live'] }),
     'ticket:updated': () => qc.invalidateQueries({ queryKey: ['live'] }),
+    'ticket:active': () => qc.invalidateQueries({ queryKey: ['live'] }),
+    'ticket:completed': () => qc.invalidateQueries({ queryKey: ['live'] }),
+    'ticket:canceled': () => qc.invalidateQueries({ queryKey: ['live'] }),
     'ticket:paid': () => qc.invalidateQueries({ queryKey: ['live'] }),
     'technician:updated': () => qc.invalidateQueries({ queryKey: ['live'] }),
+    'room:updated': () => qc.invalidateQueries({ queryKey: ['live'] }),
   })
 
   const { data, isLoading } = useQuery({
     queryKey: ['live'],
-    queryFn: () => get('/api/dashboard/live'),
+    queryFn: () => get('/api/dashboard/live?pageSize=500'),
     refetchInterval: 10000,
   })
+
+  const techs = data?.techs || []
+  const rooms = data?.rooms || []
+  const stats = data?.stats || { total: 0, active: 0, paid: 0, pending: 0, revenue: 0 }
+
+  const idleTechs = useMemo(() => techs.filter((t: any) => t.status === 'idle'), [techs])
+  const workingTechs = useMemo(() => techs.filter((t: any) => t.status === 'working'), [techs])
+  const idleRooms = useMemo(() => rooms.filter((r: any) => r.status === 'idle'), [rooms])
+  const occupiedRooms = useMemo(() => rooms.filter((r: any) => r.status === 'occupied'), [rooms])
 
   if (isLoading) {
     return (
@@ -39,51 +52,42 @@ export default function AdminDashboard() {
     )
   }
 
-  const techs = data?.techs || []
-  const rooms = data?.rooms || []
-  const stats = data?.stats || { total: 0, active: 0, paid: 0, pending: 0, revenue: 0 }
-
-  const idleTechs = useMemo(() => techs.filter((t: any) => t.status === 'idle'), [techs])
-  const workingTechs = useMemo(() => techs.filter((t: any) => t.status === 'working'), [techs])
-  const idleRooms = useMemo(() => rooms.filter((r: any) => r.status === 'idle'), [rooms])
-  const occupiedRooms = useMemo(() => rooms.filter((r: any) => r.status === 'occupied'), [rooms])
-
   return (
     <div className="p-4 md:p-6 space-y-5">
       {/* 今日概览 */}
-      <div className="grid grid-cols-4 gap-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         <StatCard label="进行中" value={stats.active} color="text-tan" />
         <StatCard label="已结账" value={stats.paid} color="text-moss" />
         <StatCard label="等待中" value={stats.pending} color="text-white/60" />
         <StatCard label="营收" value={formatMoney(stats.revenue)} color="text-tan" />
       </div>
 
-      {/* 技师状态 */}
-      <section>
-        {/* TODO: 技师状态 + 房间状态 + 统计卡片同屏展示，内容过多导致横向拥挤，建议拆分或滚动 */}
-        <h2 className="text-xl text-white/50 mb-3 flex items-center gap-2">
-          技师状态
-          <span className="text-[10px] text-white/25">空闲 {idleTechs.length} · 服务中 {workingTechs.length}</span>
-        </h2>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-          {techs.map((t: any) => (
-            <TechCard key={t.id} tech={t} />
-          ))}
-        </div>
-      </section>
+      {/* 技师 + 房间并排：各区内滚动，避免整页横向拥挤 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 items-start">
+        <section aria-labelledby="tech-status-heading">
+          <h2 id="tech-status-heading" className="text-lg text-white/50 mb-3 flex items-center gap-2">
+            技师状态
+            <span className="text-[10px] text-white/50">空闲 {idleTechs.length} · 服务中 {workingTechs.length}</span>
+          </h2>
+          <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-2 max-h-[60vh] overflow-y-auto pr-1">
+            {techs.map((t: any) => (
+              <TechCard key={t.id} tech={t} />
+            ))}
+          </div>
+        </section>
 
-      {/* 房间状态 */}
-      <section>
-        <h2 className="text-xl text-white/50 mb-3 flex items-center gap-2">
-          房间状态
-          <span className="text-[10px] text-white/25">空闲 {idleRooms.length} · 使用中 {occupiedRooms.length}</span>
-        </h2>
-        <div className="grid grid-cols-3 md:grid-cols-5 lg:grid-cols-6 gap-2">
-          {rooms.map((r: any) => (
-            <RoomCard key={r.id} room={r} />
-          ))}
-        </div>
-      </section>
+        <section aria-labelledby="room-status-heading">
+          <h2 id="room-status-heading" className="text-lg text-white/50 mb-3 flex items-center gap-2">
+            房间状态
+            <span className="text-[10px] text-white/50">空闲 {idleRooms.length} · 使用中 {occupiedRooms.length}</span>
+          </h2>
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 xl:grid-cols-6 gap-2 max-h-[60vh] overflow-y-auto pr-1">
+            {rooms.map((r: any) => (
+              <RoomCard key={r.id} room={r} />
+            ))}
+          </div>
+        </section>
+      </div>
     </div>
   )
 }
@@ -92,7 +96,7 @@ function StatCard({ label, value, color }: { label: string; value: any; color: s
   return (
     <div className="glass-card p-3 text-center">
       <div className="text-xs text-white/40">{label}</div>
-      <div className={`text-xl font-medium mt-1 ${color}`}>{value}</div>
+      <div className={`text-xl font-medium mt-1 ${color}`} aria-label={`${label}：${value}`}>{value}</div>
     </div>
   )
 }
@@ -145,7 +149,7 @@ function TechCard({ tech }: { tech: any }) {
       )}
 
       {isIdle && (
-        <div className="text-[10px] text-moss/60 mt-1">等待派钟</div>
+        <div className="text-[10px] text-moss mt-1">等待派钟</div>
       )}
     </div>
   )
@@ -167,7 +171,7 @@ function RoomCard({ room }: { room: any }) {
           <div className="text-[10px] text-white/30 truncate">{room.service_name}</div>
         </div>
       ) : (
-        <div className="mt-1 text-[10px] text-moss/50">空闲</div>
+        <div className="mt-1 text-[10px] text-moss">空闲</div>
       )}
     </div>
   )

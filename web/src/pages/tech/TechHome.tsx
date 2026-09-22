@@ -5,7 +5,7 @@ import { useRealtime } from '@/lib/realtime'
 import { notifyNewTicket, warmupAudio } from '@/lib/notify'
 import { useAuth } from '@/lib/auth'
 import { Clock, Bell } from 'lucide-react'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { TableSkeleton } from '@/components/LoadingSkeleton'
 
 // 技师端首页：当前排钟 + 今日业绩 + 实时通知
@@ -13,6 +13,7 @@ export default function TechHome() {
   const qc = useQueryClient()
   const { user } = useAuth()
   const [toast, setToast] = useState<string | null>(null)
+  const toastTimerRef = useRef<number | undefined>(undefined)
 
   // 预热音频（页面首次交互后）
   useEffect(() => {
@@ -21,9 +22,11 @@ export default function TechHome() {
     document.addEventListener('click', warmup, { once: true })
   }, [])
 
+  useEffect(() => () => { if (toastTimerRef.current) clearTimeout(toastTimerRef.current) }, [])
+
   const { data: technicians = [], isLoading: techsLoading } = useQuery({
     queryKey: ['technicians'],
-    queryFn: () => get('/api/technicians'),
+    queryFn: () => get('/api/technicians?pageSize=500'),
   })
 
   // 根据登录用户关联技师（admin 登录 tech 端时用第一个技师）
@@ -34,7 +37,8 @@ export default function TechHome() {
   // WebSocket 实时事件
   const showToast = useCallback((msg: string) => {
     setToast(msg)
-    setTimeout(() => setToast(null), 5000)
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current)
+    toastTimerRef.current = window.setTimeout(() => setToast(null), 5000)
   }, [])
 
   useRealtime({
@@ -48,6 +52,9 @@ export default function TechHome() {
       qc.invalidateQueries({ queryKey: ['tickets-today'] })
     },
     'ticket:updated': () => qc.invalidateQueries({ queryKey: ['tickets-today'] }),
+    'ticket:active': () => qc.invalidateQueries({ queryKey: ['tickets-today'] }),
+    'ticket:completed': () => qc.invalidateQueries({ queryKey: ['tickets-today'] }),
+    'ticket:canceled': () => qc.invalidateQueries({ queryKey: ['tickets-today'] }),
     'ticket:paid': (data: any) => {
       if (data.technician_id === currentTech?.id) {
         showToast(`已结账：${data.service_name || '服务'} +${formatMoney(data.commission_cents)}`)
@@ -58,7 +65,7 @@ export default function TechHome() {
 
   const { data: tickets = [], isLoading: ticketsLoading } = useQuery({
     queryKey: ['tickets-today'],
-    queryFn: () => get('/api/tickets/today'),
+    queryFn: () => get('/api/tickets/today?pageSize=500'),
     refetchInterval: 10000, // 有 WebSocket 后降为 10s 兜底
   })
 
