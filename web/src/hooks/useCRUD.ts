@@ -1,6 +1,7 @@
 import { useState, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { post, del } from '@/lib/api'
+import { toast } from '@/lib/toast'
 
 export interface ConfirmState {
   open: boolean
@@ -43,16 +44,19 @@ export function useCRUD<T = any[]>({
   const createMut = useMutation({
     mutationFn: (data: any) => (createFn || ((data: any) => post('/', data)))(data),
     onSuccess: () => { invalidate(); setModalOpen(false); onSuccess?.() },
+    onError: (e: any) => toast.error(e?.message || '创建失败'),
   })
 
   const updateMut = useMutation({
     mutationFn: async (item: any) => { if (updateFn) return updateFn(item.id, item); const res = await fetch(`/api/${item.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(item) }); return res.json(); },
     onSuccess: () => { invalidate(); setEditingItem(null); onSuccess?.() },
+    onError: (e: any) => toast.error(e?.message || '保存失败'),
   })
 
   const deleteMut = useMutation({
     mutationFn: (id: any) => (deleteFn || ((id: string) => del(`/${id}`)))(id),
     onSuccess: () => { invalidate(); onSuccess?.() },
+    onError: (e: any) => toast.error(e?.message || '删除失败'),
   })
 
   const openCreate = () => setModalOpen(true)
@@ -113,16 +117,19 @@ export function useSimpleCRUD<T = any[]>({
   const createMut = useMutation({
     mutationFn: (data: any) => (createFn || ((data: any) => post('/', data)))(data),
     onSuccess: () => { invalidate(); setShowForm(false) },
+    onError: (e: any) => toast.error(e?.message || '创建失败'),
   })
 
   const updateMut = useMutation({
     mutationFn: async (item: any) => { if (updateFn) return updateFn(item.id, item); const res = await fetch(`/api/${item.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(item) }); return res.json(); },
     onSuccess: () => { invalidate(); setEditItem(null) },
+    onError: (e: any) => toast.error(e?.message || '保存失败'),
   })
 
   const deleteMut = useMutation({
     mutationFn: (id: any) => (deleteFn || ((id: string) => del(`/${id}`)))(id),
     onSuccess: invalidate,
+    onError: (e: any) => toast.error(e?.message || '删除失败'),
   })
 
   const requestDelete = (message: string, onConfirm: () => void) => {

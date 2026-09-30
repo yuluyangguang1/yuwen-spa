@@ -50,7 +50,34 @@
     outline-offset: 2px;
     border-radius: 4px;
   }
+  /* 程序性焦点容器（路由切换焦点交接）不显示焦点框 */
+  #main-content:focus,
+  main:focus {
+    outline: none;
+  }
+  /* type=search 原生清除按钮：用自绘 × 替代，避免双按钮 */
+  input[type="search"]::-webkit-search-cancel-button,
+  input[type="search"]::-webkit-search-decoration {
+    -webkit-appearance: none;
+    appearance: none;
+  }
   /* 跳过导航链接样式见文件顶部 .skip-navigation */
+}
+
+/* ─── 路由切换进场动效 ─────────────────────────────
+   main 的直接子元素 = 页面根节点，换页即重挂载并重放动画。
+   收尾关键帧为 transform:none（不残留 transform，不改变 fixed 定位基准）。 */
+main.overflow-y-auto > * {
+  animation: page-in 0.18s ease-out both;
+}
+@keyframes page-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  main.overflow-y-auto > * {
+    animation: none;
+  }
 }
 
 @layer components {
@@ -69,6 +96,196 @@
   }
   .dark .glass-card:hover {
     @apply border-white/10 bg-white/[0.06];
+  }
+
+  /* ─── 镭射大卡（顾客端技师全身预览卡） ─────────── */
+  .holo-card {
+    position: relative;
+    display: block;
+    width: 100%;
+    aspect-ratio: 3 / 4;
+    border-radius: 18px;
+    overflow: hidden;
+    background: linear-gradient(160deg, #1d1a14, #0a0a09);
+    border: 1px solid rgba(237, 255, 69, 0.22);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+    isolation: isolate;
+    transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .holo-card:hover {
+    border-color: rgba(237, 255, 69, 0.5);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55), 0 0 24px rgba(237, 255, 69, 0.08);
+  }
+  .holo-card:active {
+    transform: scale(0.98);
+  }
+  .holo-card:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px #edff45, 0 12px 32px rgba(0, 0, 0, 0.45);
+  }
+
+  /* 无 WebGL 降级：CSS 镭射膜 + 扫光 */
+  .holo-static::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      115deg,
+      rgba(255, 0, 150, 0.9),
+      rgba(0, 220, 255, 0.85) 20%,
+      rgba(255, 240, 0, 0.8) 40%,
+      rgba(150, 60, 255, 0.9) 60%,
+      rgba(0, 255, 170, 0.85) 80%,
+      rgba(255, 80, 0, 0.8)
+    );
+    background-size: 220% 220%;
+    mix-blend-mode: screen;
+    opacity: 0.08;
+    animation: holo-film 9s linear infinite;
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  .holo-static::after {
+    content: '';
+    position: absolute;
+    top: -60%;
+    left: -80%;
+    width: 55%;
+    height: 220%;
+    background: linear-gradient(
+      100deg,
+      transparent 0%,
+      rgba(255, 255, 255, 0.08) 45%,
+      rgba(255, 255, 255, 0.14) 50%,
+      rgba(255, 255, 255, 0.08) 55%,
+      transparent 100%
+    );
+    transform: rotate(18deg);
+    mix-blend-mode: screen;
+    animation: holo-sweep 5s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 2;
+  }
+
+  .holo-card-img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center top;
+    z-index: 0;
+  }
+
+  /* 斜向扫光容器（WebGL 模式下由着色器绘制，此处仅保留图片铺底） */
+
+  /* 工号烫金牌 */
+  .holo-card-no {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 3;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: #170d02;
+    background: linear-gradient(135deg, #fff6c0 0%, #edff45 40%, #b8860b 75%, #fff6c0 100%);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+  }
+
+  /* 状态角标 */
+  .holo-card-status {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 3;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 10px;
+    color: #8fbf8f;
+    background: rgba(10, 12, 10, 0.55);
+    border: 1px solid rgba(90, 122, 90, 0.5);
+    backdrop-filter: blur(6px);
+  }
+
+  /* 底部信息铭牌 */
+  .holo-card-name {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 3;
+    padding: 36px 14px 14px;
+    background: linear-gradient(to top, rgba(5, 5, 4, 0.95) 25%, rgba(5, 5, 4, 0.55) 70%, transparent);
+  }
+
+  /* ─── 明星技师：专业金框 ─────────────────────── */
+  .holo-card--star {
+    border-color: rgba(237, 255, 69, 0.5);
+    box-shadow:
+      0 0 0 1px rgba(237, 255, 69, 0.18),
+      0 0 28px rgba(237, 255, 69, 0.1),
+      0 14px 36px rgba(0, 0, 0, 0.5),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  }
+  .holo-card--star:hover {
+    box-shadow:
+      0 0 0 1px rgba(237, 255, 69, 0.3),
+      0 0 36px rgba(237, 255, 69, 0.16),
+      0 16px 40px rgba(0, 0, 0, 0.55),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  }
+
+  .holo-card-star {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 3;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+    color: #170d02;
+    background: linear-gradient(135deg, #fff6c0 0%, #edff45 40%, #b8860b 75%, #fff6c0 100%);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+  }
+
+  .holo-card-frame {
+    position: absolute;
+    inset: 7px;
+    z-index: 4;
+    pointer-events: none;
+    border-radius: 12px;
+    border: 1px solid rgba(237, 255, 69, 0.35);
+    box-shadow:
+      inset 0 0 24px rgba(237, 255, 69, 0.05),
+      0 0 0 1px rgba(0, 0, 0, 0.35);
+    background-image:
+      linear-gradient(#edff45, #edff45),
+      linear-gradient(#edff45, #edff45),
+      linear-gradient(#edff45, #edff45),
+      linear-gradient(#edff45, #edff45),
+      linear-gradient(#edff45, #edff45),
+      linear-gradient(#edff45, #edff45),
+      linear-gradient(#edff45, #edff45),
+      linear-gradient(#edff45, #edff45);
+    background-repeat: no-repeat;
+    background-size:
+      16px 2px, 2px 16px,
+      16px 2px, 2px 16px,
+      16px 2px, 2px 16px,
+      16px 2px, 2px 16px;
+    background-position:
+      left top, left top,
+      right top, right top,
+      left bottom, left bottom,
+      right bottom, right bottom;
   }
 
   /* 按钮变体 */
@@ -151,9 +368,11 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* 骨架屏加载（统一颜色 + 光泽动画） */
+/* 骨架屏加载（统一颜色 + 光泽动画）
+   浅色模式下 bg-white/5 几乎不可见（像白屏），改用中性灰在两套主题都可见 */
 .skeleton {
-    @apply bg-white/5 rounded-lg;
+    background-color: rgba(150, 140, 128, 0.18);
+    border-radius: 0.5rem;
     animation: skeleton-pulse 1.8s cubic-bezier(0.34, 1.56, 0.64, 1) infinite;
     position: relative;
     overflow: hidden;
@@ -180,36 +399,6 @@
   }
 
   /* 通知横幅 */
-  .toast {
-    @apply fixed bottom-4 left-1/2 -translate-x-1/2 z-50 px-4 py-3 rounded-xl bg-[#170d02]/90 text-white text-sm font-medium shadow-xl;
-    animation: slideUp 0.2s ease-out, fadeOut 0.2s ease-out 2.5s forwards;
-  }
-  @keyframes slideUp {
-    from { opacity: 0; transform: translate(-50%, 20px); }
-    to { opacity: 1; transform: translate(-50%, 0); }
-  }
-  @keyframes fadeOut {
-    from { opacity: 1; }
-    to { opacity: 0; }
-  }
-
-  /* 确认对话框 */
-  .confirm-overlay {
-    @apply fixed inset-0 z-50 flex items-center justify-center bg-[#000000]/60;
-  }
-  .confirm-dialog {
-    @apply glass-card p-6 max-w-sm w-full mx-4 space-y-4;
-  }
-  .confirm-title {
-    @apply text-lg font-display text-tan;
-  }
-  .confirm-message {
-    @apply text-[rgba(245,245,240,0.8)] text-sm leading-relaxed;
-  }
-  .confirm-actions {
-    @apply flex justify-end gap-3 pt-2;
-  }
-
   /* 深色模式切换按钮 */
   .dark-mode-toggle {
     @apply touch-target rounded-lg bg-white/5 border border-white/10 
@@ -288,6 +477,16 @@
   100% { background-position: 200% 0; opacity: 0.8; }
 }
 
+/* 镭射卡动画（全局） */
+@keyframes holo-film {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 220% 50%; }
+}
+@keyframes holo-sweep {
+  0%, 18% { left: -80%; }
+  60%, 100% { left: 130%; }
+}
+
 /* ─── 焦点可见样式（全局键盘导航） ────────── */
 *:focus-visible {
   @apply outline-none ring-2 ring-tan ring-offset-2 ring-offset-[#170d02];
@@ -302,7 +501,14 @@
 }
 
 /* ─── 深色模式定制 ──────────────────────── */
+:root {
+  color-scheme: dark;
+}
+html:not(.dark) {
+  color-scheme: light;
+}
 .dark {
+  color-scheme: dark;
   --color-bg-primary: #170d02;
   --color-bg-secondary: #170d02;
   --color-bg-card: #170d02;
@@ -320,7 +526,7 @@
 }
 
 .dark .skeleton {
-  @apply bg-[#2a2a28];
+  background-color: #2a2a28;
 }
 
 /* 深色模式下滚动条样式 */
@@ -345,12 +551,9 @@
 @media (prefers-reduced-motion: reduce) {
   .skeleton,
   .skeleton-shimmer,
-  .toast,
   .room-card,
   .num-animate,
   .dark-mode-toggle,
-  .confirm-dialog,
-  .confirm-overlay,
   .btn-primary,
   .btn-secondary,
   .btn-danger,
@@ -366,21 +569,25 @@
   .room-card.occupied {
     animation: none !important;
   }
+  .holo-static::before {
+    animation: none !important;
+  }
+  .holo-static::after {
+    display: none;
+  }
   .dark-mode-toggle-track {
     transition: none !important;
   }
 }
 
 /* ─── 弹性文本子元素最小宽度 ─────────────── */
+/* 只允许收缩，不裁剪 overflow —— 否则所有 flex 滚动容器/焦点环被切 */
 .flex > * {
   min-width: 0;
-  overflow: hidden;
 }
 
 /* Off-screen sections */
-.room-card,
-.confirm-overlay,
-.toast {
+.room-card {
   content-visibility: auto;
   contain-intrinsic-size: 0 200px;
 }
@@ -395,9 +602,6 @@
   .btn-secondary {
     @apply px-3 py-2 text-sm;
   }
-  .confirm-dialog {
-    @apply p-4;
-  }
 }
 
 /* ─── 响应式断点：480px ──────────────────── */
@@ -411,18 +615,6 @@
     @apply px-2 py-1.5 text-xs;
     min-height: 40px;
   }
-  .toast {
-    @apply left-1 right-1 bottom-1 -translate-x-0;
-    font-size: 0.75rem;
-    padding: 0.5rem 0.75rem;
-  }
-  .confirm-dialog {
-    @apply p-3 mx-2;
-  }
-  .flex > * {
-    min-width: 0;
-    overflow: hidden;
-  }
 }
 
 /* 移动端响应式间距调整 */
@@ -434,26 +626,372 @@
   .btn-secondary {
     @apply px-3 py-2 text-sm;
   }
-  .toast {
-    @apply left-2 right-2 -translate-x-0 bottom-2;
-  }
 }
 
 @layer utilities {
-  /* 中国风色彩工具类 */
+  /* 中国风色彩工具类
+     注意：此前 .bg-tan/.bg-moss/.bg-cinnabar/.bg-gold 被写成 10% 透明，
+     导致 39 处「bg-tan text-white」主按钮变半透明、状态圆点几乎不可见、
+     ConfirmDialog 危险按钮无底色 —— 现改为实心态（语义：实心=强调/指示）。
+     需要半透明底时显式写 bg-tan/10 等。 */
   .text-tan { color: #edff45; }
-  .text-moss { color: #5a7a5a; }
-  .text-gold { color: #b8860b; }
-  .text-cinnabar { color: #8b3a3a; }
-  .bg-tan { background-color: rgba(160, 130, 109, 0.1); }
+  /* 语义色按主题自适应：深色底用亮变体保证 ≥4.5:1，浅色底回落原中国风色 */
+  .text-moss { color: #7fae7f; }
+  .text-gold { color: #d9a521; }
+  .text-cinnabar { color: #e07b7b; }
+  html:not(.dark) .text-moss { color: #4a6a4a; }
+  html:not(.dark) .text-gold { color: #8a6508; }
+  html:not(.dark) .text-cinnabar { color: #8b3a3a; }
+  .bg-tan { background-color: #a0826d; }
   .bg-tan\/20 { background-color: rgba(160, 130, 109, 0.2); }
   .bg-tan\/5 { background-color: rgba(160, 130, 109, 0.05); }
-  .bg-moss { background-color: rgba(90, 122, 90, 0.1); }
-  .bg-cinnabar { background-color: rgba(139, 58, 58, 0.1); }
-  .bg-gold { background-color: rgba(184, 134, 11, 0.1); }
+  .bg-moss { background-color: #5a7a5a; }
+  .bg-cinnabar { background-color: #8b3a3a; }
+  .bg-gold { background-color: #b8860b; }
   .border-tan\/20 { border-color: rgba(160, 130, 109, 0.2); }
   .border-tan\/30 { border-color: rgba(160, 130, 109, 0.3); }
   /* 响应式字体缩放 */
   .text-xs-responsive { @apply text-[11px] md:text-xs; }
   .text-sm-responsive { @apply text-sm md:text-base; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   浅色模式重映射层
+   ───────────────────────────────────────────────────────────────
+   约定：深色为设计基底，组件默认写深色类（text-white / border-white/
+   bg-white\/5 …）。本区块（非分层，优先级高于一切 @layer 规则）在
+   html 非 .dark 时把这些工具类统一换算为浅色语义值。
+
+   · 深色模式（html.dark）完全不受影响 —— 本区块所有规则都以
+     html:not(.dark) 为前缀。
+   · 彩色实心底（bg-tan/moss/cinnabar/gold/black、镭射卡）上的白字
+     通过末尾「彩底保持白字」小节恢复白色。
+   · 新增代码继续写深色类即可自动适配浅色，无需记忆两套类名。
+   调色板：纸底 #f2eee6 · 墨字 #211e18 · 品牌强调（浅色）#6b6310
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── 1. 页面底色 / 滚动条 ─────────────────────────────────── */
+html:not(.dark) body {
+  background-color: #f2eee6;
+  color: #211e18;
+}
+html:not(.dark) ::-webkit-scrollbar-thumb {
+  background-color: rgb(33 30 24 / 0.25);
+}
+html:not(.dark) ::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(33 30 24 / 0.42);
+}
+
+/* ── 2. 文本：白 → 墨（按原透明度阶梯换算） ───────────────── */
+html:not(.dark) .text-white    { color: #211e18; }
+html:not(.dark) .text-white\/90 { color: rgb(33 30 24 / 0.92); }
+html:not(.dark) .text-white\/80 { color: rgb(33 30 24 / 0.86); }
+html:not(.dark) .text-white\/70 { color: rgb(33 30 24 / 0.8); }
+html:not(.dark) .text-white\/60 { color: rgb(33 30 24 / 0.72); }
+html:not(.dark) .text-white\/55 { color: rgb(33 30 24 / 0.7); }
+html:not(.dark) .text-white\/50 { color: rgb(33 30 24 / 0.66); }
+html:not(.dark) .text-white\/45 { color: rgb(33 30 24 / 0.62); }
+html:not(.dark) .text-white\/40 { color: rgb(33 30 24 / 0.6); }
+html:not(.dark) .text-white\/35 { color: rgb(33 30 24 / 0.55); }
+html:not(.dark) .text-white\/30 { color: rgb(33 30 24 / 0.5); }
+html:not(.dark) .text-white\/25 { color: rgb(33 30 24 / 0.46); }
+html:not(.dark) .text-white\/20 { color: rgb(33 30 24 / 0.42); }
+html:not(.dark) .text-white\/15 { color: rgb(33 30 24 / 0.38); }
+html:not(.dark) .text-white\/10 { color: rgb(33 30 24 / 0.34); }
+/* hover 语义：深色下「变亮」 ↔ 浅色下「变深」 */
+html:not(.dark) .hover\:text-white:hover { color: #17140d; }
+html:not(.dark) .hover\:text-white\/90:hover { color: rgb(23 20 13 / 0.95); }
+html:not(.dark) .hover\:text-white\/80:hover { color: rgb(23 20 13 / 0.9); }
+html:not(.dark) .hover\:text-white\/70:hover { color: rgb(23 20 13 / 0.85); }
+html:not(.dark) .hover\:text-white\/60:hover { color: rgb(23 20 13 / 0.8); }
+
+/* ── 3. 边框：白 → 墨 ────────────────────────────────────── */
+html:not(.dark) .border-white\/5  { border-color: rgb(33 30 24 / 0.09); }
+html:not(.dark) .border-white\/10 { border-color: rgb(33 30 24 / 0.13); }
+html:not(.dark) .border-white\/15 { border-color: rgb(33 30 24 / 0.17); }
+html:not(.dark) .border-white\/20 { border-color: rgb(33 30 24 / 0.23); }
+html:not(.dark) .border-white\/30 { border-color: rgb(33 30 24 / 0.29); }
+html:not(.dark) .hover\:border-white\/15:hover { border-color: rgb(33 30 24 / 0.25); }
+html:not(.dark) .hover\:border-white\/20:hover { border-color: rgb(33 30 24 / 0.3); }
+html:not(.dark) .hover\:border-white\/30:hover { border-color: rgb(33 30 24 / 0.37); }
+
+/* ── 4. 背景：白 → 卡片/浅灰阶 ──────────────────────────── */
+html:not(.dark) .bg-white\/5  { background-color: #ffffff; }
+html:not(.dark) .bg-white\/10 { background-color: rgb(33 30 24 / 0.1); }
+html:not(.dark) .bg-white\/15 { background-color: rgb(33 30 24 / 0.16); }
+html:not(.dark) .bg-white\/20 { background-color: rgb(33 30 24 / 0.22); }
+html:not(.dark) .hover\:bg-white\/5:hover  { background-color: #f0ebdf; }
+html:not(.dark) .hover\:bg-white\/10:hover { background-color: rgb(33 30 24 / 0.16); }
+html:not(.dark) .hover\:bg-white:hover { background-color: #f0ebdf; }
+html:not(.dark) .bg-white\/\[0\.02\] { background-color: rgb(33 30 24 / 0.05); }
+html:not(.dark) .hover\:bg-white\/\[0\.02\]:hover { background-color: rgb(33 30 24 / 0.05); }
+html:not(.dark) .bg-white\/\[0\.03\] { background-color: rgb(33 30 24 / 0.07); }
+html:not(.dark) .hover\:bg-white\/\[0\.03\]:hover { background-color: rgb(33 30 24 / 0.07); }
+/* bg-white 裸类（拨码开关滑块等）保持白色：浅色下同样成立，不改 */
+
+/* ── 5. 任意深色背景 → 浅色等价物 ────────────────────────── */
+html:not(.dark) .bg-\[\#0e0e0d\] { background-color: #fbf9f3; }
+html:not(.dark) .bg-\[\#0e0e0d\]\/80 { background-color: rgb(255 255 255 / 0.88); }
+html:not(.dark) .bg-\[\#0e0e0d\]\/90 { background-color: rgb(255 255 255 / 0.94); }
+html:not(.dark) .bg-\[\#170d02\] { background-color: #faf7f0; }
+html:not(.dark) .bg-\[\#170d02\]\/85 { background-color: rgb(255 255 255 / 0.9); }
+html:not(.dark) .bg-\[\#170d02\]\/95 { background-color: rgb(255 255 255 / 0.96); }
+html:not(.dark) .bg-\[\#1a1a18\] { background-color: #fffefb; }
+html:not(.dark) .bg-\[\#1a1a18\]\/95 { background-color: rgb(255 255 255 / 0.96); }
+html:not(.dark) .bg-\[\#141210\] { background-color: #fffefb; }
+html:not(.dark) .bg-\[\#1c1408\]\/95 { background-color: rgb(255 255 255 / 0.96); }
+html:not(.dark) .bg-\[\#2a2a29\] { background-color: #e7e3d9; }
+html:not(.dark) .bg-\[\#0a0a09\] { background-color: #f2eee6; }
+
+/* ── 6. 品牌强调：亮黄 → 橄榄金（对纸底 ≥4.5:1） ────────── */
+html:not(.dark) .text-tan { color: #6b6310; }
+html:not(.dark) .hover\:text-tan:hover { color: #57500b; }
+html:not(.dark) .text-tan\/80 { color: rgb(107 99 16 / 0.8); }
+html:not(.dark) .text-tan\/70 { color: rgb(107 99 16 / 0.7); }
+html:not(.dark) .text-tan\/60 { color: rgb(107 99 16 / 0.6); }
+html:not(.dark) .text-tan\/50 { color: rgb(107 99 16 / 0.5); }
+html:not(.dark) .text-tan\/30 { color: rgb(107 99 16 / 0.3); }
+/* 焦点环：浅色下亮黄不可见 → 橄榄金 + 纸色 offset */
+html:not(.dark) *:focus-visible {
+  --tw-ring-color: #6b6310;
+  --tw-ring-offset-color: #f2eee6;
+}
+/* 原生控件选中色 */
+html:not(.dark) .accent-\[\#edff45\] { accent-color: #a0826d; }
+
+/* ── 7. 状态色：400/300 亮级 → 浅底可读的 600/700 级 ─────── */
+html:not(.dark) .text-red-400 { color: #dc2626; }
+html:not(.dark) .text-red-300 { color: #dc2626; }
+html:not(.dark) .hover\:text-red-400:hover { color: #b91c1c; }
+html:not(.dark) .text-amber-300 { color: #b45309; }
+html:not(.dark) .hover\:text-amber-300:hover { color: #92400e; }
+html:not(.dark) .text-amber-200\/90 { color: #92400e; }
+html:not(.dark) .text-amber-200\/80 { color: #92400e; }
+html:not(.dark) .text-blue-400 { color: #2563eb; }
+html:not(.dark) .text-blue-300 { color: #2563eb; }
+html:not(.dark) .text-purple-400 { color: #7c3aed; }
+html:not(.dark) .text-green-400 { color: #15803d; }
+html:not(.dark) .hover\:text-green-400:hover { color: #15803d; }
+html:not(.dark) .hover\:text-yellow-400:hover { color: #a16207; }
+
+/* ── 8. placeholder ───────────────────────────────────────── */
+html:not(.dark) .placeholder-white\/20::placeholder { color: rgb(33 30 24 / 0.45); }
+html:not(.dark) .placeholder-white\/30::placeholder { color: rgb(33 30 24 / 0.55); }
+html:not(.dark) .placeholder\:text-white\/25::placeholder { color: rgb(33 30 24 / 0.5); }
+
+/* ── 9. 组件层（@apply 内联了颜色，类选择器匹配不到，单独补） ── */
+html:not(.dark) .glass-card {
+  border-color: rgb(33 30 24 / 0.1);
+  background-color: rgb(255 255 255 / 0.8);
+}
+html:not(.dark) .glass-card:hover {
+  border-color: rgb(33 30 24 / 0.18);
+  background-color: rgb(255 255 255 / 0.92);
+}
+html:not(.dark) .btn-secondary {
+  background-color: #ffffff;
+  border-color: rgb(33 30 24 / 0.15);
+  color: rgb(33 30 24 / 0.78);
+}
+html:not(.dark) .btn-secondary:hover {
+  background-color: #f4f0e6;
+  color: #17140d;
+}
+html:not(.dark) .dark-mode-toggle {
+  background-color: #ffffff;
+  border-color: rgb(33 30 24 / 0.15);
+  color: rgb(33 30 24 / 0.85);
+  --tw-ring-offset-color: #f2eee6;
+}
+html:not(.dark) .dark-mode-toggle:hover {
+  background-color: #f4f0e6;
+  color: #6b6310;
+}
+html:not(.dark) .dark-mode-toggle[aria-checked="true"] {
+  color: #6b6310;
+}
+
+/* ── 10. 彩色实心底 / 镭射卡：白字保持白色 ─────────────────
+      （仅当元素自身或祖先带这些深底时恢复；正常浅底上的
+       text-white 已在第 2 节换算为墨色） */
+html:not(.dark) :is(.bg-tan, .bg-moss, .bg-cinnabar, .bg-gold, .bg-black, .holo-card).text-white { color: #fff; }
+html:not(.dark) :is(.bg-tan, .bg-moss, .bg-cinnabar, .bg-gold, .bg-black, .holo-card) .text-white { color: #fff; }
+html:not(.dark) :is(.bg-tan, .bg-moss, .bg-cinnabar, .bg-gold, .bg-black, .holo-card).text-white\/90 { color: rgb(255 255 255 / 0.9); }
+html:not(.dark) :is(.bg-tan, .bg-moss, .bg-cinnabar, .bg-gold, .bg-black, .holo-card) .text-white\/90 { color: rgb(255 255 255 / 0.9); }
+html:not(.dark) :is(.bg-tan, .bg-moss, .bg-cinnabar, .bg-gold, .bg-black, .holo-card).text-white\/80 { color: rgb(255 255 255 / 0.8); }
+html:not(.dark) :is(.bg-tan, .bg-moss, .bg-cinnabar, .bg-gold, .bg-black, .holo-card) .text-white\/80 { color: rgb(255 255 255 / 0.8); }
+html:not(.dark) :is(.bg-tan, .bg-moss, .bg-cinnabar, .bg-gold, .bg-black, .holo-card).text-white\/70 { color: rgb(255 255 255 / 0.7); }
+html:not(.dark) :is(.bg-tan, .bg-moss, .bg-cinnabar, .bg-gold, .bg-black, .holo-card) .text-white\/70 { color: rgb(255 255 255 / 0.7); }
+html:not(.dark) :is(.bg-tan, .bg-moss, .bg-cinnabar, .bg-gold, .bg-black, .holo-card).text-white\/60 { color: rgb(255 255 255 / 0.6); }
+html:not(.dark) :is(.bg-tan, .bg-moss, .bg-cinnabar, .bg-gold, .bg-black, .holo-card) .text-white\/60 { color: rgb(255 255 255 / 0.6); }
+html:not(.dark) :is(.bg-tan, .bg-moss, .bg-cinnabar, .bg-gold, .bg-black, .holo-card).text-white\/50 { color: rgb(255 255 255 / 0.5); }
+html:not(.dark) :is(.bg-tan, .bg-moss, .bg-cinnabar, .bg-gold, .bg-black, .holo-card) .text-white\/50 { color: rgb(255 255 255 / 0.5); }
+html:not(.dark) :is(.bg-tan, .bg-moss, .bg-cinnabar, .bg-gold, .bg-black, .holo-card).text-white\/40 { color: rgb(255 255 255 / 0.4); }
+html:not(.dark) :is(.bg-tan, .bg-moss, .bg-cinnabar, .bg-gold, .bg-black, .holo-card) .text-white\/40 { color: rgb(255 255 255 / 0.4); }
+html:not(.dark) :is(.bg-tan, .bg-moss, .bg-cinnabar, .bg-gold, .bg-black, .holo-card).text-white\/30 { color: rgb(255 255 255 / 0.3); }
+html:not(.dark) :is(.bg-tan, .bg-moss, .bg-cinnabar, .bg-gold, .bg-black, .holo-card) .text-white\/30 { color: rgb(255 255 255 / 0.3); }
+html:not(.dark) :is(.bg-tan, .bg-moss, .bg-cinnabar, .bg-gold, .bg-black, .holo-card).text-white\/20 { color: rgb(255 255 255 / 0.2); }
+html:not(.dark) :is(.bg-tan, .bg-moss, .bg-cinnabar, .bg-gold, .bg-black, .holo-card) .text-white\/20 { color: rgb(255 255 255 / 0.2); }
+/* 彩底上的 hover 白字同样保持 */
+html:not(.dark) :is(.bg-tan, .bg-moss, .bg-cinnabar, .bg-gold, .bg-black):is(:hover) .hover\:text-white:hover { color: #fff; }
+
+/* ── 登录页背景氛围：顶部金色辉光（深浅通用） ─────────── */
+.login-bg {
+  background-image: radial-gradient(ellipse 680px 360px at 50% -8%, rgb(217 179 8 / 0.1), transparent 70%);
+}
+
+/* ── 登录卡片入场（Motion Primitives 式 fade-up，尊重减弱动效） ── */
+@keyframes login-fade-up {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+.login-bg form {
+  animation: login-fade-up 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .login-bg form { animation: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   借鉴清单落地（MicroKit / CSS Text Effects / Motion Primitives）：
+   按钮扫光 · 品牌字流光 · 输入框过渡 · 减弱动效适配
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── 主按钮 hover 扫光（MicroKit shine 反向简化版：高光条扫过） ── */
+.btn-primary,
+.btn-shine {
+  position: relative;
+  overflow: hidden;
+}
+.btn-primary::after,
+.btn-shine::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 32%, rgb(255 255 255 / 0.38) 50%, transparent 68%);
+  transform: translateX(-130%);
+  transition: transform 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.btn-primary:hover::after,
+.btn-shine:hover::after {
+  transform: translateX(130%);
+}
+
+/* ── 品牌字「足韵」流光（CSS Text Effects 金色扫光，深浅双主题） ── */
+.brand-shimmer {
+  background-image: linear-gradient(100deg, #edff45 38%, #ffffff 50%, #edff45 62%);
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: brand-shimmer 4.5s ease-in-out infinite;
+}
+html:not(.dark) .brand-shimmer {
+  background-image: linear-gradient(100deg, #6b6310 38%, #b3a63e 50%, #6b6310 62%);
+}
+@keyframes brand-shimmer {
+  0%, 100% { background-position: 90% 0; }
+  50% { background-position: 10% 0; }
+}
+
+/* ── 表单控件过渡（Focus Field 式平滑：边框/底色/阴影 150ms） ── */
+input,
+select,
+textarea {
+  transition: border-color 0.15s ease, background-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+/* ── 减弱动效：关闭扫光与流光 ── */
+@media (prefers-reduced-motion: reduce) {
+  .btn-primary::after,
+  .btn-shine::after {
+    display: none;
+  }
+  .brand-shimmer {
+    animation: none;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   借鉴落地二（Zajno motion 原则 / Design Spells / 60fps success-state）：
+   卡片错峰入场 · 弹窗缩放打开 · 导航图标微弹 · 成功态打勾
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── 错峰入场（Zajno: Offset & Delay） ── */
+@keyframes rise-in {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: none; }
+}
+.rise-in {
+  animation: rise-in 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ── 弹层打开（Zajno: Zoom 连续性 + Fade）：遮罩淡入、面板缩放浮起 ── */
+@keyframes overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes dialog-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+.fixed.inset-0 {
+  animation: overlay-in 0.2s ease both;
+}
+.fixed.inset-0 > * {
+  animation: dialog-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* ── 导航图标 hover 微弹（Design Spells: sidebar icon animation） ── */
+@keyframes icon-bounce {
+  0% { transform: scale(1); }
+  35% { transform: scale(1.18) translateY(-2px); }
+  70% { transform: scale(0.94); }
+  100% { transform: scale(1); }
+}
+nav a:hover svg {
+  animation: icon-bounce 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ── 成功态打勾微弹（60fps: success-state / confetti 变体） ── */
+@keyframes tick-pop {
+  0% { opacity: 0; transform: scale(0.4); }
+  55% { opacity: 1; transform: scale(1.16); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.btn-done {
+  position: relative;
+  overflow: hidden;
+}
+.btn-done::before {
+  content: '✓';
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #5a7a5a;
+  color: #f5f0e8;
+  font-weight: 700;
+  border-radius: inherit;
+  z-index: 2;
+  animation: tick-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.success-tick,
+.pay-ok {
+  animation: tick-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+/* ── 减弱动效：关闭错峰/弹层/图标弹/打勾 ── */
+@media (prefers-reduced-motion: reduce) {
+  .rise-in,
+  .fixed.inset-0,
+  .fixed.inset-0 > *,
+  nav a:hover svg,
+  .btn-done::before,
+  .success-tick,
+  .pay-ok {
+    animation: none !important;
+  }
 }

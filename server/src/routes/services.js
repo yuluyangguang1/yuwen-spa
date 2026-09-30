@@ -38,20 +38,31 @@ export async function registerServiceRoutes(fastify) {
       const shop_id = req.user.shop_id
       const { name, category, duration, price_cents,
         commission_type = 'percent', commission_value = 0, sort_order = 0 } = req.body || {}
-      if (!name || duration == null || price_cents == null) {
-        throw new ValidationError('missing fields')
-      }
+      if (typeof name !== 'string' || !name.trim()) throw new ValidationError('name required')
+      if (category != null && typeof category !== 'string') throw new ValidationError('category 必须是字符串')
       if (!Number.isInteger(Number(price_cents)) || Number(price_cents) < 0) {
         throw new ValidationError('price_cents 必须是非负整数')
       }
+      const dur = Number(duration)
+      if (!Number.isInteger(dur) || dur <= 0) throw new ValidationError('duration 必须是正整数')
+      if (!['percent', 'fixed'].includes(commission_type)) {
+        throw new ValidationError('commission_type 必须是 percent/fixed')
+      }
+      const cv = Number(commission_value)
+      if (!Number.isFinite(cv) || cv < 0) throw new ValidationError('commission_value 非法')
+      if (commission_type === 'percent' && cv > 10000) {
+        throw new ValidationError('percent 万分比不能超过 10000（即 100%）')
+      }
+      const so = Number(sort_order)
+      if (!Number.isInteger(so)) throw new ValidationError('sort_order 必须是整数')
       const id = nanoid(10)
       const now = Date.now()
       fastify.db.prepare(`
         INSERT INTO services(id, shop_id, name, category, duration, price_cents,
           commission_type, commission_value, sort_order, created_at, updated_at)
         VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(id, shop_id, name, category || null, Number(duration), Number(price_cents),
-          commission_type, Number(commission_value), Number(sort_order), now, now)
+        `).run(id, shop_id, name.trim(), category || null, dur, Number(price_cents),
+          commission_type, cv, so, now, now)
       const newService = fastify.db.prepare(`SELECT * FROM services WHERE id=?`).get(id)
       fastify.cache.invalidate(`services:${shop_id}:`)
       return newService
@@ -65,7 +76,7 @@ export async function registerServiceRoutes(fastify) {
     try {
       requireAdmin(req)
       const { id } = req.params
-      const existing = fastify.db.prepare(`SELECT id, shop_id FROM services WHERE id=?`).get(id)
+      const existing = fastify.db.prepare(`SELECT id, shop_id, commission_type FROM services WHERE id=?`).get(id)
       if (!existing) throw new NotFoundError('not found')
       if (existing.shop_id !== req.user.shop_id) throw new PermissionError('无权限操作该店铺的服务')
 
@@ -80,6 +91,11 @@ export async function registerServiceRoutes(fastify) {
       if (body.commission_value !== undefined) {
         const cv = Number(body.commission_value)
         if (!Number.isFinite(cv) || cv < 0) throw new ValidationError('commission_value 非法')
+        // 生效类型 = 本次更新的类型（缺省沿用旧值）；percent 上限 100%
+        const effType = body.commission_type !== undefined ? body.commission_type : existing.commission_type
+        if (effType === 'percent' && cv > 10000) {
+          throw new ValidationError('percent 万分比不能超过 10000（即 100%）')
+        }
       }
       if (body.duration !== undefined) {
         const d = Number(body.duration)

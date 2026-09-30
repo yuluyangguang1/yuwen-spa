@@ -24,6 +24,8 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+    // holo chunk（three.js）≈540KB 且仅顾客端懒加载，放宽默认 500KB 告警线
+    chunkSizeWarningLimit: 600,
     // 代码分割：vendor 和页面 chunks 分离
     rollupOptions: {
       output: {
@@ -31,7 +33,6 @@ export default defineConfig({
         manualChunks: {
           vendor: ['react', 'react-dom', 'react-router-dom'],
           query: ['@tanstack/react-query'],
-          motion: ['framer-motion'],
           icons: ['lucide-react'],
         },
       },

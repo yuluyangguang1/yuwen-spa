@@ -1,5 +1,5 @@
 import { memo } from 'react'
-import { Bell } from 'lucide-react'
+import { Bell, Star } from 'lucide-react'
 import { statusLabel } from '@/lib/utils'
 
 interface TechCardProps {
@@ -14,7 +14,17 @@ export const TechCard = memo(function TechCard({ tech, onClick }: TechCardProps)
       onClick={() => onClick(tech)}
     >
       <td className="p-3 font-bold text-white/60">{tech.number}</td>
-      <td className="p-3">{tech.name}</td>
+      <td className="p-3">
+        <span className="flex items-center gap-2">
+          {tech.avatar
+            ? <img src={tech.avatar} alt="" width={600} height={800} loading="lazy" decoding="async" className="w-7 h-9 rounded object-cover border border-white/10 shrink-0" />
+            : <span className="w-7 h-9 rounded bg-white/5 border border-white/5 shrink-0" />}
+          <span className="min-w-0">
+            {tech.name}
+            {tech.is_star ? <Star size={11} className="inline ml-1 text-tan fill-tan" /> : null}
+          </span>
+        </span>
+      </td>
       <td className="p-3 text-white/50">{tech.level || '-'}</td>
       <td className="p-3 text-white/40">{tech.phone || '-'}</td>
       <td className="p-3 text-center">

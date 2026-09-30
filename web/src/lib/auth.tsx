@@ -6,7 +6,7 @@ import { api } from '../lib/api'
 interface User {
   id: string
   username: string
-  role: 'admin' | 'pos' | 'tech'
+  role: 'admin' | 'pos' | 'tech' | 'cs'
   display_name: string
   shop_id: string
   technician_id?: string
@@ -33,16 +33,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setLoading(false)
       return
     }
+    let cancelled = false
     api<{ user: User }>('/api/auth/me', {
       headers: { Authorization: `Bearer ${token}` },
     })
-      .then(res => setUser(res.user))
+      .then(res => {
+        if (!cancelled) setUser(res.user)
+      })
       .catch(() => {
+        if (cancelled) return
         // token 失效，清除
         localStorage.removeItem('yuwen_token')
         setToken(null)
       })
-      .finally(() => setLoading(false))
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => { cancelled = true }
   }, [token])
 
   const login = async (username: string, password: string) => {
@@ -53,12 +60,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('yuwen_token', res.token)
     setToken(res.token)
     setUser(res.user)
+    // 通知 realtime 单例：等待 token 的订阅可以建立连接了（替代 2s 轮询）
+    window.dispatchEvent(new CustomEvent('yuwen:login'))
   }
 
   const logout = () => {
     localStorage.removeItem('yuwen_token')
     setToken(null)
     setUser(null)
+    // 通知 realtime 单例断开旧连接
+    window.dispatchEvent(new CustomEvent('yuwen:logout'))
   }
 
   return (

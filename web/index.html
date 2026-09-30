@@ -8,17 +8,28 @@
     <link rel="manifest" href="/manifest.json" />
     <link rel="icon" type="image/png" href="/icons/icon-192.png" />
     <title>足韵 yuwen-spa</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=LXGW+WenKai:wght@300;400;700&family=Ma+Shan+Zheng&display=swap" rel="stylesheet" />
+    <!-- 字体自托管（unicode-range 分片，仅下载页面用到的字块；不依赖任何外部 CDN） -->
+    <link href="/fonts/lxgw/lxgwwenkai-regular.css" rel="stylesheet" />
+    <link href="/fonts/lxgw/lxgwwenkai-bold.css" rel="stylesheet" />
+    <link href="/fonts/ma-shan-zheng/400.css" rel="stylesheet" />
   </head>
   <body class="bg-paper dark:bg-[#0e0e0d] text-ink dark:text-[#e8e6df] antialiased">
     <div id="root"></div>
+    <script>
+      // 启动前恢复主题，避免深浅色闪烁
+      try {
+        var s = localStorage.getItem('yuwen-dark-mode')
+        var dark = s !== null ? s === 'true' : window.matchMedia('(prefers-color-scheme: dark)').matches
+        document.documentElement.classList.toggle('dark', dark)
+      } catch (e) { document.documentElement.classList.add('dark') }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
     <script>
+      // 移除旧 Service Worker（离线壳会锁死更新），顺带清掉历史 Cache Storage
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js').catch(() => {})
+          navigator.serviceWorker.getRegistrations().then((rs) => rs.forEach((r) => r.unregister())).catch(() => {})
+          if (window.caches) caches.keys().then((ks) => ks.forEach((k) => caches.delete(k))).catch(() => {})
         })
       }
     </script>

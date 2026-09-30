@@ -45,14 +45,23 @@ export async function registerUserRoutes(fastify) {
       const { username, password, role, display_name, technician_id } = req.body || {}
 
       if (!username || !password) throw new ValidationError('用户名和密码必填')
-      if (!['admin', 'pos', 'tech'].includes(role)) throw new ValidationError('角色必须是 admin/pos/tech')
+      if (!['admin', 'pos', 'tech', 'cs'].includes(role)) throw new ValidationError('角色必须是 admin/pos/tech/cs')
       const pwdErr = validatePassword(password)
       if (pwdErr) throw new ValidationError(pwdErr)
 
-      const existing = fastify.db.prepare(`SELECT id FROM users WHERE username = ?`).get(username)
-      if (existing) throw new ConflictError('用户名已存在')
-
+      const existing = fastify.db.prepare(`SELECT id, active FROM users WHERE username = ?`).get(username)
       const now = Date.now()
+
+      // 软删残留的同名用户：复活复用该行（否则用户名被永久占用，无法重建）
+      if (existing && existing.active) throw new ConflictError('用户名已存在')
+      if (existing && !existing.active) {
+        fastify.db.prepare(`
+          UPDATE users SET password_hash = ?, role = ?, display_name = ?, technician_id = ?, active = 1, updated_at = ?
+          WHERE id = ?
+        `).run(hashPassword(password), role, display_name || username, technician_id || null, now, existing.id)
+        return { ok: true, id: existing.id }
+      }
+
       const id = nanoid(10)
       fastify.db.prepare(`
         INSERT INTO users(id, shop_id, username, password_hash, role, display_name, technician_id, created_at, updated_at)
@@ -74,14 +83,20 @@ export async function registerUserRoutes(fastify) {
       const { role, display_name, active, technician_id } = req.body || {}
       const userId = req.params.id
 
-      if (role !== undefined && role !== null && !['admin', 'pos', 'tech'].includes(role)) {
-        throw new ValidationError('角色必须是 admin/pos/tech')
+      if (role !== undefined && role !== null && !['admin', 'pos', 'tech', 'cs'].includes(role)) {
+        throw new ValidationError('角色必须是 admin/pos/tech/cs')
       }
 
       const user = fastify.db.prepare(`SELECT * FROM users WHERE id = ? AND shop_id = ?`).get(userId, req.user.shop_id)
       if (!user) throw new NotFoundError('用户不存在')
 
-      if ((active === 0 || active === '0') && userId === req.user.sub) {
+      if (role !== undefined && role !== null && userId === req.user.sub) {
+        throw new ValidationError('不能修改自己的角色')
+      }
+      if (active !== undefined && active !== null && ![0, 1, true, false, '0', '1'].includes(active)) {
+        throw new ValidationError('active 必须是 0/1')
+      }
+      if ((active === 0 || active === '0' || active === false) && userId === req.user.sub) {
         throw new ValidationError('不能禁用自己的账号')
       }
 
@@ -90,6 +105,11 @@ export async function registerUserRoutes(fastify) {
       const techIdUpdated = Object.prototype.hasOwnProperty.call(req.body || {}, 'technician_id')
         ? (technician_id || null)
         : undefined
+      if (techIdUpdated) {
+        const t = fastify.db.prepare(`SELECT id FROM technicians WHERE id=? AND shop_id=?`)
+          .get(techIdUpdated, req.user.shop_id)
+        if (!t) throw new NotFoundError('technician not found')
+      }
       if (techIdUpdated !== undefined) {
         fastify.db.prepare(`
           UPDATE users SET role = COALESCE(?, role), display_name = COALESCE(?, display_name),

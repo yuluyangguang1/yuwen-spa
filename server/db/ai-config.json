@@ -1,5 +1,6 @@
 {
-  "hermesUrl": "http://127.0.0.1:8643",
+  "baseUrl": "http://127.0.0.1:8643",
+  "apiKey": "",
   "model": "",
-  "enabled": true
+  "enabled": false
 }

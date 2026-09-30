@@ -42,7 +42,7 @@ Covers the full daily workflow of a physical foot bath store:
         Node.js + Fastify + SQLite
         Listening on 0.0.0.0:8080
               │
-              ├── Hermes Gateway (127.0.0.1:8642)
+              ├── OpenAI 兼容 API（可选，后台配置）
               │    └── AI Chat / Technician Scoring / Business Reports
               │
        LAN WiFi (same WiFi = accessible)
@@ -184,14 +184,7 @@ yuwen-spa/
 
 ## Deployment
 
-1. **Install Hermes Agent** (one-time setup for AI features):
-   ```bash
-   bash installers/setup-hermes.sh
-   ```
-   - Installs Hermes Gateway on port 8642
-   - Guides you through API Key configuration (DeepSeek recommended)
-
-2. **Start the app**:
+1. **Start the app**:
    ```bash
    # macOS
    open installers/start.command
@@ -203,12 +196,12 @@ yuwen-spa/
    bash installers/start.sh
    ```
 
-3. **Access from any device** on the same LAN:
+2. **Access from any device** on the same LAN:
    ```
    http://<host-ip>:8080
    ```
 
-> **AI Models**: Manage models via [Hermes Web UI](http://localhost:8642). Yuwen Spa only calls the API — it doesn't care which model is behind it.
+3. **(Optional) Enable AI**: in Admin → AI, set an OpenAI-compatible Base URL + API Key (DeepSeek, Ollama, LM Studio, …) and model name. Core POS features work fully offline without this.
 
 ## Screenshots
 
@@ -235,7 +228,8 @@ MIT
 > - **AI 赋能**：内置 AI 助手，可进行技师月度评分、生成经营日报、智能排钟建议
 > - **多平台通知**：企业微信、飞书、钉钉、Slack、Discord 五种通知渠道
 > - **经营报表**：日营收、技师绩效、CSV 导出、经营摘要一目了然
-> - **PWA 支持**：可安装到手机主屏幕，离线可用
+> - **PWA 支持**：manifest 可安装到手机主屏幕（离线壳已移除，数据全在本机）
+> - **字体自托管**：文楷正文 + 马善政标题字体全部随包本地分发，不依赖任何外部 CDN，断网/内网环境渲染完整
 >
 > 查看 [GitHub Release](https://github.com/yuluyangguang1/yuwen-spa/releases) 获取最新版本。
 
@@ -246,10 +240,14 @@ MIT
 | Phase | 目标 | 状态 |
 |-------|------|------|
 | **Phase 1** | 核心完善（开钟、结账、会员、技师、排钟、AI 助手） | ✅ 已完成 |
-| **Phase 2** | 多店连锁管理、总部报表、跨店数据聚合 | 🔜 规划中 |
-| **Phase 3** | 客户营销（预约、积分、优惠券、会员等级） | 🔜 规划中 |
-| **Phase 4** | AI 深化（智能排钟、语音点单、经营预测、自动调价） | 🔜 规划中 |
-| **Phase 5** | 生态扩展（PWA 完整支持、微信小程序、硬件对接、开放 API） | 🔜 规划中 |
+| **Phase 2** | 健壮性加固（安全、分页、索引、缓存、校验） | ✅ 已完成 |
+| **Phase 3** | 业务扩展（预约、优惠券、库存、收据、派钟、排班、完钟提醒） | ✅ 已完成 |
+| **Phase 4** | 体验优化（虚拟滚动、toast、深色模式、快捷键、i18n、Web Vitals） | ✅ 已完成 |
+| **Phase 5** | AI 深化（流式输出、智能排钟、语音点单、经营预测、异常检测） | ✅ 已完成 |
+| **稳定性加固** | SSE 断连/超时、401 伪成功、库存/券/状态并发守卫、chunk 重试、清理任务 | ✅ 已完成 |
+| **批次1 · 备份恢复 API** | 备份列表/手动备份/下载/校验暂存恢复（不在线换库）+ 设置页管理 | ✅ 已完成 |
+| **批次2 · 充卡提成+拉新归属** | 客户归属人（谁拉的算谁的）、充值档位提成、按人提成报表（schema v11） | ✅ 已完成 |
+| **批次3 · 退款/退卡+代客预约** | 钟单/余额退款、充值档位退卡冲销、员工代客预约（schema v12） | ✅ 已完成 |
 
 ## 同类项目研究
 

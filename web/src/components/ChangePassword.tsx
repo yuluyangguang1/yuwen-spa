@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { put } from '../lib/api'
-import { X, Key } from 'lucide-react'
+import { X, Key, Check } from 'lucide-react'
 import { memo } from 'react'
 
 interface ChangePasswordModalProps {
@@ -37,7 +37,10 @@ export const ChangePasswordModal = memo(function ChangePasswordModal({ onClose }
   if (ok) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-        <div className="glass-card w-full max-w-sm p-6 text-center space-y-3">
+        <div className="glass-card w-full max-w-sm p-6 text-center space-y-3 max-h-[85dvh] overflow-y-auto">
+          <span className="success-tick mx-auto w-11 h-11 rounded-full bg-moss/15 border border-moss/45 text-moss grid place-items-center" aria-hidden="true">
+            <Check size={22} strokeWidth={2.5} />
+          </span>
           <p className="text-tan text-sm">密码修改成功</p>
           <button onClick={onClose} className="bg-tan/20 text-tan border border-tan/30 px-6 py-2 rounded-lg text-sm">确定</button>
         </div>
@@ -47,7 +50,7 @@ export const ChangePasswordModal = memo(function ChangePasswordModal({ onClose }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="glass-card w-full max-w-sm p-5 space-y-4">
+      <div className="glass-card w-full max-w-sm p-5 space-y-4 max-h-[85dvh] overflow-y-auto">
         <div className="flex items-center justify-between">
           <h2 className="font-medium flex items-center gap-2"><Key size={16} /> 修改密码</h2>
           <button onClick={onClose} className="text-white/30 hover:text-white"><X size={18} /></button>

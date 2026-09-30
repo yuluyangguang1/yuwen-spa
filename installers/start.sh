@@ -24,6 +24,12 @@ echo "  足韵 yuwen-spa — 启动中"
 echo "  ──────────────────────"
 echo ""
 
+# ── 0. JWT_SECRET 占位：从已有 .env 读取（生成需 node，放到 Node 检测后）──
+if [ -z "$JWT_SECRET" ] && [ -f "$PROJECT_DIR/.env" ]; then
+  JWT_SECRET=$(grep -E '^JWT_SECRET=' "$PROJECT_DIR/.env" | head -1 | cut -d= -f2- | tr -d '"' | tr -d "'")
+  export JWT_SECRET
+fi
+
 # ── 1. 检测 Node.js ────────────────────────────────
 if ! command -v node &>/dev/null; then
   error "未找到 Node.js，请安装 Node.js 20+"
@@ -36,48 +42,21 @@ if [ "$NODE_VER" -lt 20 ]; then
 fi
 info "Node.js $(node -v)"
 
+# ── 1b. JWT_SECRET 缺失则生成并持久化 ──────────────
+if [ -z "$JWT_SECRET" ]; then
+  JWT_SECRET=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")
+  export JWT_SECRET
+  echo "JWT_SECRET=$JWT_SECRET" >> "$PROJECT_DIR/.env"
+  info "已生成 JWT_SECRET 并写入 .env"
+fi
+
 # ── 2. 安装依赖（首次）──────────────────────────────
 if [ ! -d "$PROJECT_DIR/server/node_modules" ]; then
   info "安装后端依赖..."
   cd "$PROJECT_DIR/server" && npm install --silent
 fi
 
-# ── 3. 检查 Hermes Gateway ─────────────────────────
-HERMES_URL="http://127.0.0.1:8642"
-if ! curl -sf "$HERMES_URL/health" >/dev/null 2>&1; then
-  warn "Hermes Gateway 未运行，正在启动..."
-
-  if command -v hermes &>/dev/null; then
-    # 检查是否有 yuwen-spa profile
-    if hermes profile list 2>/dev/null | grep -q "yuwen-spa"; then
-      PROFILE_FLAG="-p yuwen-spa"
-    else
-      PROFILE_FLAG=""
-    fi
-
-    nohup hermes $PROFILE_FLAG gateway run > "$PROJECT_DIR/hermes-gateway.log" 2>&1 &
-    GATEWAY_PID=$!
-
-    # 等待最多 15 秒
-    for i in $(seq 1 15); do
-      sleep 1
-      if curl -sf "$HERMES_URL/health" >/dev/null 2>&1; then
-        info "Hermes Gateway 已启动 (PID $GATEWAY_PID)"
-        break
-      fi
-    done
-
-    if ! curl -sf "$HERMES_URL/health" >/dev/null 2>&1; then
-      warn "Hermes 启动超时，请稍后手动启动: hermes gateway run"
-    fi
-  else
-    warn "未找到 Hermes，AI 功能不可用。运行 setup-hermes.sh 安装"
-  fi
-else
-  info "Hermes Gateway 运行中"
-fi
-
-# ── 4. 获取可用端口 ────────────────────────────────
+# ── 3. 获取可用端口 ────────────────────────────────
 PORT=8080
 while lsof -i :$PORT -P 2>/dev/null | grep -q LISTEN; do
   PORT=$((PORT + 1))
@@ -87,7 +66,7 @@ while lsof -i :$PORT -P 2>/dev/null | grep -q LISTEN; do
   fi
 done
 
-# ── 5. 启动足韵后端 ────────────────────────────────
+# ── 4. 启动足韵后端 ────────────────────────────────
 cd "$PROJECT_DIR/server"
 PORT=$PORT node src/index.js &
 SERVER_PID=$!
@@ -100,7 +79,7 @@ if ! kill -0 "$SERVER_PID" 2>/dev/null; then
 fi
 info "足韵已启动 → http://localhost:$PORT"
 
-# ── 6. 打开浏览器 ──────────────────────────────────
+# ── 5. 打开浏览器 ──────────────────────────────────
 case "$(uname -s)" in
   Darwin) open "http://localhost:$PORT" 2>/dev/null || true ;;
   Linux)  xdg-open "http://localhost:$PORT" 2>/dev/null || true ;;
@@ -121,6 +100,6 @@ fi
 echo ""
 echo "  按 Ctrl+C 停止"
 
-# ── 7. 等待退出 ────────────────────────────────────
+# ── 6. 等待退出 ────────────────────────────────────
 trap "echo ''; info '正在关闭...'; kill $SERVER_PID 2>/dev/null; exit 0" INT TERM
 wait $SERVER_PID

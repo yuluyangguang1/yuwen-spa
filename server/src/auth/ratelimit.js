@@ -5,13 +5,14 @@
 
 const attempts = new Map()  // ip -> { count, resetAt }
 
-// 定期清理过期记录（每 5 分钟）
-setInterval(() => {
+// 定期清理过期记录（每 5 分钟）；unref 避免阻止进程退出
+const cleanupTimer = setInterval(() => {
   const now = Date.now()
   for (const [ip, data] of attempts) {
     if (now > data.resetAt) attempts.delete(ip)
   }
 }, 5 * 60000)
+cleanupTimer.unref?.()
 
 export function checkRateLimit(key, { maxAttempts = 10, windowMs = 5 * 60 * 1000 } = {}) {
   const now = Date.now()

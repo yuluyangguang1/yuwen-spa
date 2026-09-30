@@ -1,9 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useLocation } from 'react-router-dom'
 import { get, post } from '@/lib/api'
 import { formatMoney } from '@/lib/utils'
+import { matchItemByName } from '@/lib/voice'
 import { Check, User, MapPin, Scissors } from 'lucide-react'
+import { VoiceInput } from '@/components/VoiceInput'
+import { toast } from '@/lib/toast'
 
 // 收银端：开钟/派单界面
 // 流程：选项目 → 选技师 → 选房间 → 确认开钟
@@ -16,17 +19,20 @@ export default function PosNewTicket() {
   const [techId, setTechId] = useState('')
   const [roomId, setRoomId] = useState(preRoomId)
   const [success, setSuccess] = useState(false)
+  const resetTimerRef = useRef<number | undefined>(undefined)
 
-  const { data: services = [] } = useQuery({
-    queryKey: ['services'],
+  useEffect(() => () => { if (resetTimerRef.current) clearTimeout(resetTimerRef.current) }, [])
+
+  const { data: services = [], isLoading: servicesLoading } = useQuery({
+    queryKey: ['services', { active: 1 }],
     queryFn: () => get('/api/services?active=1&pageSize=500'),
   })
-  const { data: technicians = [] } = useQuery({
-    queryKey: ['technicians'],
+  const { data: technicians = [], isLoading: techsLoading } = useQuery({
+    queryKey: ['technicians', { active: 1 }],
     queryFn: () => get('/api/technicians?active=1&pageSize=500'),
   })
   const { data: rooms = [] } = useQuery({
-    queryKey: ['rooms'],
+    queryKey: ['rooms', { active: 1 }],
     queryFn: () => get('/api/rooms?active=1&pageSize=500'),
   })
   const { data: shop } = useQuery({
@@ -44,16 +50,21 @@ export default function PosNewTicket() {
     }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tickets-today'] })
+      queryClient.invalidateQueries({ queryKey: ['ticket-queue'] })
       queryClient.invalidateQueries({ queryKey: ['technicians'] })
       queryClient.invalidateQueries({ queryKey: ['rooms'] })
       setSuccess(true)
-      setTimeout(() => {
+      if (resetTimerRef.current) clearTimeout(resetTimerRef.current)
+      resetTimerRef.current = window.setTimeout(() => {
         setSuccess(false)
         setStep('service')
         setServiceId('')
         setTechId('')
         setRoomId('')
       }, 2000)
+    },
+    onError: (e: any) => {
+      toast.error(e?.message || '开钟失败，请重试')
     },
   })
 
@@ -62,6 +73,17 @@ export default function PosNewTicket() {
   const selectedRoom = rooms.find((r: any) => r.id === roomId)
   const idleTechs = technicians.filter((t: any) => t.status === 'idle')
   const idleRooms = rooms.filter((r: any) => r.status === 'idle')
+
+  const onVoiceService = (text: string) => {
+    const hit = matchItemByName(text, services as any[])
+    if (hit) {
+      setServiceId(hit.id)
+      setStep('tech')
+      toast.success(`已选项目：${hit.name}`)
+    } else {
+      toast.error(`未匹配到项目「${text}」`)
+    }
+  }
 
   if (success) {
     return (
@@ -113,9 +135,24 @@ export default function PosNewTicket() {
       {/* Step 1: 选项目 */}
       {step === 'service' && (
         <div className="space-y-2">
-          <h2 className="text-sm text-white/60">选择服务项目</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm text-white/60">选择服务项目</h2>
+            <VoiceInput
+              onText={onVoiceService}
+              onError={(m) => toast.error(m)}
+              label="语音选择项目"
+            />
+          </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-            {services.map((s: any) => (
+            {servicesLoading && !services.length
+              ? Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="glass-card p-4 space-y-2">
+                    <div className="h-4 w-2/3 rounded bg-white/[0.06] animate-pulse" />
+                    <div className="h-3 w-1/2 rounded bg-white/[0.06] animate-pulse" />
+                    <div className="h-4 w-1/3 rounded bg-white/[0.06] animate-pulse" />
+                  </div>
+                ))
+              : services.map((s: any) => (
               <button
                 key={s.id}
                 onClick={() => {
@@ -131,6 +168,11 @@ export default function PosNewTicket() {
                 <div className="text-tan text-sm mt-2">{formatMoney(s.price_cents)}</div>
               </button>
             ))}
+            {!servicesLoading && !services.length && (
+              <div className="col-span-full text-xs text-white/30 text-center py-4">
+                暂无上架服务项目，请在管理端「项目」页添加
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -140,7 +182,14 @@ export default function PosNewTicket() {
         <div className="space-y-2">
           <h2 className="text-sm text-white/60">选择技师（可跳过）</h2>
           <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-            {idleTechs.map((t: any) => (
+            {techsLoading && !technicians.length
+              ? Array.from({ length: 8 }).map((_, i) => (
+                  <div key={i} className="glass-card p-3 text-center space-y-2">
+                    <div className="w-10 h-10 mx-auto rounded-full bg-white/[0.06] animate-pulse" />
+                    <div className="h-3 w-2/3 mx-auto rounded bg-white/[0.06] animate-pulse" />
+                  </div>
+                ))
+              : idleTechs.map((t: any) => (
               <button
                 key={t.id}
                 onClick={() => { setTechId(t.id); setStep(preRoomId ? 'confirm' : 'room') }}
@@ -223,7 +272,7 @@ export default function PosNewTicket() {
             </button>
             <button
               onClick={() => createTicket.mutate()}
-              disabled={createTicket.isPending}
+              disabled={createTicket.isPending || !shop?.id || !serviceId}
               className="flex-1 bg-tan text-white py-3 rounded-xl text-sm font-medium active:scale-[0.97] disabled:opacity-50"
             >
               {createTicket.isPending ? '开钟中...' : '确认开钟'}

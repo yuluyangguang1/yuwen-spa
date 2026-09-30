@@ -1,19 +1,23 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { get, post, put } from '@/lib/api'
-import { Plus, X, Printer } from 'lucide-react'
+import { Plus, X, Printer, DoorOpen } from 'lucide-react'
 import QRCode from 'qrcode'
 import { Field } from '@/components/Field'
 import { RoomCard } from '@/components/RoomCard'
+import { EmptyState } from '@/components/EmptyState'
+import { RoomCardSkeleton } from '@/components/LoadingSkeleton'
+import { useShopName } from '@/hooks/useShopName'
 
 export default function AdminRooms() {
   const qc = useQueryClient()
+  const shopName = useShopName()
   const [showQR, setShowQR] = useState<string | null>(null)
   const [qrDataUrl, setQrDataUrl] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editItem, setEditItem] = useState<any>(null)
 
-  const { data: rooms = [] } = useQuery({
+  const { data: rooms = [], isLoading: roomsLoading } = useQuery({
     queryKey: ['rooms'],
     queryFn: () => get('/api/rooms?pageSize=500'),
   })
@@ -49,9 +53,15 @@ export default function AdminRooms() {
     return port ? `${ip}:${port}` : ip
   }
 
-  // system 未加载完不生成链接，避免用错误端口
-  const getGuestUrl = (roomId: string) =>
-    system ? `http://${getLanHost()}/guest/room/${roomId}` : ''
+  const getGuestUrl = (roomId: string) => {
+    if (!system) return ''
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      // 非本机访问：沿用当前 origin 协议（https 页面不能生成 http 码）
+      return `${window.location.origin}/guest/room/${roomId}`
+    }
+    // 本机开发：局域网 IP 只能 http
+    return `http://${getLanHost()}/guest/room/${roomId}`
+  }
 
   // 本地生成二维码（无外网依赖），data URL 可直接打印
   useEffect(() => {
@@ -87,7 +97,7 @@ export default function AdminRooms() {
   <div class="type">${room?.type || ''} · 顾客扫码自助下单</div>
   <img src="${qrDataUrl}" alt="QR"/>
   <div class="hint">扫码选技师 / 选项目</div>
-  <div class="brand">足韵</div>
+  <div class="brand">${shopName.replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c]!))}</div>
 </div>
 <script>window.onload=function(){window.print();window.close()}</script>
 </body></html>`)
@@ -116,7 +126,7 @@ export default function AdminRooms() {
             </div>
             <div className="flex justify-center">
               {qrDataUrl ? (
-                <img src={qrDataUrl} alt="QR Code" className="w-48 h-48 rounded-lg bg-white p-2" />
+                <img src={qrDataUrl} alt="QR Code" width={192} height={192} decoding="async" className="w-48 h-48 rounded-lg bg-white p-2" />
               ) : (
                 <div className="w-48 h-48 rounded-lg bg-white/5 flex items-center justify-center text-xs text-white/40">
                   正在生成二维码...
@@ -133,14 +143,21 @@ export default function AdminRooms() {
       )}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-        {rooms.map((r: any) => (
-          <RoomCard
-            key={r.id}
-            room={r}
-            onEdit={(room) => setEditItem(room)}
-            onQR={(id) => setShowQR(id)}
-          />
-        ))}
+        {roomsLoading && !rooms.length
+          ? Array.from({ length: 8 }).map((_, i) => <RoomCardSkeleton key={i} />)
+          : rooms.map((r: any) => (
+              <RoomCard
+                key={r.id}
+                room={r}
+                onEdit={(room) => setEditItem(room)}
+                onQR={(id) => setShowQR(id)}
+              />
+            ))}
+        {!roomsLoading && !rooms.length && (
+          <div className="col-span-full">
+            <EmptyState icon={DoorOpen} title="暂无房间" hint="点右上角「新增房间」创建第一个房间" />
+          </div>
+        )}
       </div>
 
       {showForm && <RoomForm title="新增房间" shop_id={shop_id}
@@ -175,7 +192,7 @@ function RoomForm({ title, initial, shop_id, onSubmit, onClose, error, loading }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="glass-card w-full max-w-sm p-5 space-y-4">
+      <div className="glass-card w-full max-w-sm p-5 space-y-4 max-h-[85dvh] overflow-y-auto">
         <div className="flex items-center justify-between">
           <h2 className="font-medium">{title}</h2>
           <button onClick={onClose} className="text-white/30 hover:text-white"><X size={18} /></button>

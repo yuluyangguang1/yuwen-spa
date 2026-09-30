@@ -9,6 +9,7 @@
 //   会员办卡/充值 → 大群
 //   大额消费 → 大群
 
+import { nanoid } from 'nanoid'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -16,6 +17,30 @@ import { fileURLToPath } from 'node:url'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(__dirname, '..', '..')
 const CONFIG_PATH = path.join(ROOT, 'db', 'notify-config.json')
+
+// 注入 db 后可写 notify_history（Phase 3 通知历史）
+let historyDb = null
+let historyShopFallback = null
+export function setNotifyHistoryDb(db, shopId) {
+  historyDb = db
+  historyShopFallback = shopId || null
+}
+export function recordNotifyHistory(event, content, channels, shopId) {
+  if (!historyDb) return
+  try {
+    historyDb.prepare(`
+      INSERT INTO notify_history(id, shop_id, event, content, channels, created_at)
+      VALUES(?,?,?,?,?,?)
+    `).run(
+      nanoid(12),
+      shopId || historyShopFallback || null,
+      String(event || 'unknown'),
+      content == null ? null : String(content).slice(0, 4000),
+      JSON.stringify(channels || []),
+      Date.now(),
+    )
+  } catch (_) { /* 历史写入失败不影响通知 */ }
+}
 
 const DEFAULTS = {
   channels: {
@@ -25,6 +50,8 @@ const DEFAULTS = {
     slack: { enabled: false, webhookUrl: '', label: 'Slack' },
     discord: { enabled: false, webhookUrl: '', label: 'Discord' },
   },
+  // 完钟预警提前分钟（可配 [5] 或 [10,5]），到点固定提醒
+  endWarnMinutes: [5],
 }
 
 // ── 配置管理（按店隔离，兼容旧全局文件）──────────
@@ -181,9 +208,13 @@ async function sendToChannel(channelName, content, shopId) {
 }
 
 // 发送到所有启用的渠道
-async function broadcastToAll(content, shopId) {
-  const promises = Object.keys(DEFAULTS.channels).map(ch => sendToChannel(ch, content, shopId))
-  return Promise.all(promises)
+// event: 可选事件名，用于 notify_history
+async function broadcastToAll(content, shopId, event = 'broadcast') {
+  const keys = Object.keys(DEFAULTS.channels)
+  const results = await Promise.all(keys.map(ch => sendToChannel(ch, content, shopId)))
+  const channels = keys.map((k, i) => ({ key: k, ok: !!results[i] }))
+  recordNotifyHistory(event, content, channels, shopId)
+  return results
 }
 
 // ── 新派钟：大群 + 技师私信 ──────────────────────
@@ -202,21 +233,25 @@ export async function notifyTicketCreated(ticket, techWebhookUrl) {
   ].filter(Boolean).join('\n')
 
   const results = await Promise.allSettled([
-    broadcastToAll(content, ticket.shop_id),
-    techWebhookUrl ? sendToChannelByUrl(techWebhookUrl, content) : Promise.resolve(false),
+    broadcastToAll(content, ticket.shop_id, 'ticket.created'),
+    techWebhookUrl ? sendToChannelByUrl(techWebhookUrl, content, ticket.shop_id, 'ticket.created.tech') : Promise.resolve(false),
   ])
   return results.every(r => r.status === 'fulfilled')
 }
 
 // 按 URL 发送（兼容旧接口的技师私信）
-async function sendToChannelByUrl(url, content) {
-  // 尝试判断 URL 类型发送
+async function sendToChannelByUrl(url, content, shopId, event = 'direct') {
+  const ok = await sendWebhookByUrl(url, content)
+  if (ok) recordNotifyHistory(event, content, [{ key: 'url', ok: true }], shopId)
+  return ok
+}
+
+async function sendWebhookByUrl(url, content) {
   if (url.includes('qyapi.weixin')) return sendWeChatWebhook(url, content)
   if (url.includes('open.feishu')) return sendFeishuWebhook(url, content)
   if (url.includes('oapi.dingtalk')) return sendDingTalkWebhook(url, content)
   if (url.includes('hooks.slack')) return sendSlackWebhook(url, content)
   if (url.includes('discord.com/api')) return sendDiscordWebhook(url, content)
-  // 默认按企业微信发送
   return sendWeChatWebhook(url, content)
 }
 
@@ -235,8 +270,8 @@ export async function notifyTicketPaid(ticket, techWebhookUrl) {
     `> 提成：¥${commission}`,
   ].join('\n')
 
-  return broadcastToAll(content, ticket.shop_id).then(() => {
-    if (techWebhookUrl) return sendToChannelByUrl(techWebhookUrl, content)
+  return broadcastToAll(content, ticket.shop_id, 'ticket.paid').then(() => {
+    if (techWebhookUrl) return sendToChannelByUrl(techWebhookUrl, content, ticket.shop_id, 'ticket.paid.tech')
     return true
   })
 }
@@ -256,7 +291,7 @@ export async function notifyMembershipTopup(customer, amount_cents, type) {
     `> 余额：¥${balance}`,
   ].join('\n')
 
-  return broadcastToAll(content, customer.shop_id)
+  return broadcastToAll(content, customer.shop_id, 'customer.topup')
 }
 
 // ── 大额消费提醒：大群 ──────────────────────────
@@ -269,13 +304,13 @@ export async function notifyBigTicket(ticket, threshold_cents = 20000) {
     `> 项目：${ticket.service_name || '服务'}`,
     `> 金额：¥${price}`,
   ].join('\n')
-  return broadcastToAll(content, ticket.shop_id)
+  return broadcastToAll(content, ticket.shop_id, 'ticket.big')
 }
 
 // ── 测试连接 ──────────────────────────────────────
 export async function testWebhook(shopId) {
   const content = '✅ 足韵 webhook 连接测试成功\n\n当前时间：' + new Date().toLocaleString('zh-CN')
-  return broadcastToAll(content, shopId)
+  return broadcastToAll(content, shopId, 'test')
 }
 
 // ── 获取各渠道状态 ──────────────────────────────

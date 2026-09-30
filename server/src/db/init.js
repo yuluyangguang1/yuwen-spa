@@ -37,6 +37,9 @@ export function initDatabase(dbDir) {
   // 第一次跑：seed 默认数据（项目库、技师示例等），方便老板上手
   seedIfEmpty(db)
 
+  // 老库补种：食物用品商品 + 客服账号（幂等，已存在则跳过）
+  seedExtras(db)
+
   return db
 }
 
@@ -226,7 +229,7 @@ CREATE TABLE IF NOT EXISTS users (
   shop_id       TEXT NOT NULL REFERENCES shops(id),
   username      TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
-  role          TEXT NOT NULL DEFAULT 'pos',  -- admin / pos / tech
+  role          TEXT NOT NULL DEFAULT 'pos',  -- admin / pos / tech / cs
   display_name  TEXT,
   technician_id TEXT REFERENCES technicians(id),  -- role=tech 时关联技师
   active        INTEGER NOT NULL DEFAULT 1,
@@ -244,6 +247,83 @@ CREATE TABLE IF NOT EXISTS ai_chats (
   created_at  INTEGER NOT NULL
 );
 
+-- ─── 食物用品（点单商品）───────────────────────────
+CREATE TABLE IF NOT EXISTS products (
+  id          TEXT PRIMARY KEY,
+  shop_id     TEXT NOT NULL REFERENCES shops(id),
+  name        TEXT NOT NULL,
+  category    TEXT,                  -- 饮品 / 食品 / 用品
+  price_cents INTEGER NOT NULL,
+  stock       INTEGER,               -- NULL = 不限库存
+  active      INTEGER NOT NULL DEFAULT 1,
+  sort_order  INTEGER NOT NULL DEFAULT 0,
+  created_at  INTEGER NOT NULL,
+  updated_at  INTEGER NOT NULL
+);
+
+-- ─── 顾客点单订单 ─────────────────────────────────
+-- 履约状态机：pending -> accepted -> delivered
+--                      -> canceled
+-- 收款独立维度：paid_at 非空 = 已收款
+CREATE TABLE IF NOT EXISTS product_orders (
+  id          TEXT PRIMARY KEY,
+  shop_id     TEXT NOT NULL REFERENCES shops(id),
+  room_id     TEXT REFERENCES rooms(id),
+  ticket_id   TEXT REFERENCES tickets(id),
+  status      TEXT NOT NULL DEFAULT 'pending', -- pending/accepted/delivered/canceled
+  total_cents INTEGER NOT NULL,
+  payment_method TEXT,                -- cash/wechat/alipay/balance/card
+  paid_at     INTEGER,                -- 收款时间（NULL=未收）
+  paid_by     TEXT,                   -- 收款操作人 users.id
+  notes       TEXT,
+  created_at  INTEGER NOT NULL,
+  updated_at  INTEGER NOT NULL
+);
+
+-- ─── 交接班 ──────────────────────────────────────
+-- 班次期间实时汇总在查询时计算；关班时落快照。
+CREATE TABLE IF NOT EXISTS shifts (
+  id          TEXT PRIMARY KEY,
+  shop_id     TEXT NOT NULL REFERENCES shops(id),
+  user_id     TEXT REFERENCES users(id),
+  username    TEXT,
+  opened_at   INTEGER NOT NULL,
+  closed_at   INTEGER,
+  status      TEXT NOT NULL DEFAULT 'open', -- open/closed
+  -- 关班快照（按支付方式：钟单+点单合并）
+  cash_cents      INTEGER NOT NULL DEFAULT 0,
+  wechat_cents    INTEGER NOT NULL DEFAULT 0,
+  alipay_cents    INTEGER NOT NULL DEFAULT 0,
+  balance_cents   INTEGER NOT NULL DEFAULT 0,
+  card_cents      INTEGER NOT NULL DEFAULT 0,
+  topup_cents     INTEGER NOT NULL DEFAULT 0, -- 班内充值流入
+  revenue_cents   INTEGER NOT NULL DEFAULT 0, -- 钟单+点单营收
+  ticket_count    INTEGER NOT NULL DEFAULT 0,
+  product_count   INTEGER NOT NULL DEFAULT 0,
+  actual_cash_cents INTEGER,           -- 实际钱箱现金（点钞录入）
+  diff_cents      INTEGER,             -- 差额 = 实际 - 系统现金
+  notes           TEXT,
+  created_at  INTEGER NOT NULL,
+  updated_at  INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS product_order_items (
+  id           TEXT PRIMARY KEY,
+  order_id     TEXT NOT NULL REFERENCES product_orders(id) ON DELETE CASCADE,
+  product_id   TEXT REFERENCES products(id),
+  product_name TEXT NOT NULL,
+  price_cents  INTEGER NOT NULL,
+  qty          INTEGER NOT NULL,
+  created_at   INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_products_shop ON products(shop_id);
+CREATE INDEX IF NOT EXISTS idx_product_orders_shop_status ON product_orders(shop_id, status);
+CREATE INDEX IF NOT EXISTS idx_product_orders_room ON product_orders(room_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_product_order_items_order ON product_order_items(order_id);
+CREATE INDEX IF NOT EXISTS idx_shifts_shop_status ON shifts(shop_id, status);
+CREATE INDEX IF NOT EXISTS idx_shifts_opened ON shifts(opened_at);
+
 CREATE INDEX IF NOT EXISTS idx_services_shop ON services(shop_id);
 CREATE INDEX IF NOT EXISTS idx_rooms_shop ON rooms(shop_id);
 CREATE INDEX IF NOT EXISTS idx_technicians_shop ON technicians(shop_id);
@@ -253,6 +333,75 @@ CREATE INDEX IF NOT EXISTS idx_reviews_ticket ON reviews(ticket_id);
 CREATE INDEX IF NOT EXISTS idx_wallet_shop_type ON wallet_transactions(shop_id, type);
 CREATE INDEX IF NOT EXISTS idx_ai_scores_tech ON ai_scores(technician_id);
 CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_logs(action);
+
+-- ─── 优惠券 ────────────────────────────────────
+CREATE TABLE IF NOT EXISTS coupons (
+  id              TEXT PRIMARY KEY,
+  shop_id         TEXT NOT NULL REFERENCES shops(id),
+  code            TEXT NOT NULL,
+  name            TEXT NOT NULL,
+  type            TEXT NOT NULL DEFAULT 'percent', -- percent | fixed
+  value           INTEGER NOT NULL,
+  min_spend_cents INTEGER NOT NULL DEFAULT 0,
+  max_uses        INTEGER,
+  used_count      INTEGER NOT NULL DEFAULT 0,
+  starts_at       INTEGER,
+  ends_at         INTEGER,
+  active          INTEGER NOT NULL DEFAULT 1,
+  created_at      INTEGER NOT NULL,
+  updated_at      INTEGER NOT NULL,
+  UNIQUE(shop_id, code)
+);
+CREATE INDEX IF NOT EXISTS idx_coupons_shop ON coupons(shop_id, active);
+
+-- ─── 预约 ──────────────────────────────────────
+CREATE TABLE IF NOT EXISTS appointments (
+  id              TEXT PRIMARY KEY,
+  shop_id         TEXT NOT NULL REFERENCES shops(id),
+  customer_id     TEXT REFERENCES customers(id),
+  technician_id   TEXT REFERENCES technicians(id),
+  service_id      TEXT REFERENCES services(id),
+  room_id         TEXT REFERENCES rooms(id),
+  customer_name   TEXT,
+  customer_phone  TEXT,
+  notes           TEXT,
+  scheduled_at    INTEGER NOT NULL,
+  duration_min    INTEGER NOT NULL DEFAULT 60,
+  status          TEXT NOT NULL DEFAULT 'pending',
+  ticket_id       TEXT REFERENCES tickets(id),
+  created_at      INTEGER NOT NULL,
+  updated_at      INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_appt_shop_status ON appointments(shop_id, status, scheduled_at);
+CREATE INDEX IF NOT EXISTS idx_appt_scheduled ON appointments(scheduled_at);
+
+-- ─── 通知历史 ──────────────────────────────────
+CREATE TABLE IF NOT EXISTS notify_history (
+  id          TEXT PRIMARY KEY,
+  shop_id     TEXT,
+  event       TEXT NOT NULL,
+  content     TEXT,
+  channels    TEXT,
+  created_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_notify_hist_shop ON notify_history(shop_id, created_at);
+
+-- ─── 库存出入库流水 ────────────────────────────
+CREATE TABLE IF NOT EXISTS stock_movements (
+  id          TEXT PRIMARY KEY,
+  shop_id     TEXT NOT NULL REFERENCES shops(id),
+  product_id  TEXT NOT NULL REFERENCES products(id),
+  type        TEXT NOT NULL,        -- in | out | adjust
+  qty         INTEGER NOT NULL,     -- 对库存的有符号增减
+  stock_after INTEGER,
+  ref_type    TEXT,                 -- order | cancel | manual
+  ref_id      TEXT,
+  notes       TEXT,
+  created_by  TEXT,
+  created_at  INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_stock_mov_product ON stock_movements(product_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_stock_mov_shop ON stock_movements(shop_id, created_at);
 `
 
 // ── 迁移系统 ──────────────────────────────────────
@@ -295,6 +444,221 @@ const MIGRATIONS = [
       db.exec(`ALTER TABLE tickets ADD COLUMN fulfillment TEXT NOT NULL DEFAULT 'onsite'`)
     } catch (e) {
       if (!String(e.message).includes('duplicate column')) throw e
+    }
+  }},
+  { version: 5, up: (db) => {
+    try {
+      db.exec(`ALTER TABLE technicians ADD COLUMN is_star INTEGER NOT NULL DEFAULT 0`)
+    } catch (e) {
+      if (!String(e.message).includes('duplicate column')) throw e
+    }
+  }},
+  { version: 6, up: (db) => {
+    // 过夜睡眠服务：顾客扫码下单时可勾选（附加固定服务费）
+    try {
+      db.exec(`ALTER TABLE tickets ADD COLUMN overnight INTEGER NOT NULL DEFAULT 0`)
+    } catch (e) {
+      if (!String(e.message).includes('duplicate column')) throw e
+    }
+  }},
+  { version: 7, up: (db) => {
+    // 点单收款：履约状态与收款解耦，paid_at 非空 = 已收款
+    for (const col of [
+      `ALTER TABLE product_orders ADD COLUMN payment_method TEXT`,
+      `ALTER TABLE product_orders ADD COLUMN paid_at INTEGER`,
+      `ALTER TABLE product_orders ADD COLUMN paid_by TEXT`,
+    ]) {
+      try { db.exec(col) } catch (e) {
+        if (!String(e.message).includes('duplicate column')) throw e
+      }
+    }
+    try { db.exec(`CREATE INDEX IF NOT EXISTS idx_product_orders_paid ON product_orders(shop_id, paid_at)`) } catch (_) {}
+    // 交接班
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS shifts (
+        id          TEXT PRIMARY KEY,
+        shop_id     TEXT NOT NULL REFERENCES shops(id),
+        user_id     TEXT REFERENCES users(id),
+        username    TEXT,
+        opened_at   INTEGER NOT NULL,
+        closed_at   INTEGER,
+        status      TEXT NOT NULL DEFAULT 'open',
+        cash_cents      INTEGER NOT NULL DEFAULT 0,
+        wechat_cents    INTEGER NOT NULL DEFAULT 0,
+        alipay_cents    INTEGER NOT NULL DEFAULT 0,
+        balance_cents   INTEGER NOT NULL DEFAULT 0,
+        card_cents      INTEGER NOT NULL DEFAULT 0,
+        topup_cents     INTEGER NOT NULL DEFAULT 0,
+        revenue_cents   INTEGER NOT NULL DEFAULT 0,
+        ticket_count    INTEGER NOT NULL DEFAULT 0,
+        product_count   INTEGER NOT NULL DEFAULT 0,
+        actual_cash_cents INTEGER,
+        diff_cents      INTEGER,
+        notes           TEXT,
+        created_at  INTEGER NOT NULL,
+        updated_at  INTEGER NOT NULL
+      )
+    `)
+    try { db.exec(`CREATE INDEX IF NOT EXISTS idx_shifts_shop_status ON shifts(shop_id, status)`) } catch (_) {}
+    try { db.exec(`CREATE INDEX IF NOT EXISTS idx_shifts_opened ON shifts(opened_at)`) } catch (_) {}
+  }},
+  { version: 8, up: (db) => {
+    // 优惠券 / 预约 / 通知历史（Phase 3）
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS coupons (
+        id              TEXT PRIMARY KEY,
+        shop_id         TEXT NOT NULL REFERENCES shops(id),
+        code            TEXT NOT NULL,
+        name            TEXT NOT NULL,
+        type            TEXT NOT NULL DEFAULT 'percent', -- percent | fixed
+        value           INTEGER NOT NULL,               -- percent: 折扣百分比1-99; fixed: 立减分
+        min_spend_cents INTEGER NOT NULL DEFAULT 0,
+        max_uses        INTEGER,                        -- NULL = 不限
+        used_count      INTEGER NOT NULL DEFAULT 0,
+        starts_at       INTEGER,
+        ends_at         INTEGER,
+        active          INTEGER NOT NULL DEFAULT 1,
+        created_at      INTEGER NOT NULL,
+        updated_at      INTEGER NOT NULL,
+        UNIQUE(shop_id, code)
+      );
+      CREATE INDEX IF NOT EXISTS idx_coupons_shop ON coupons(shop_id, active);
+
+      CREATE TABLE IF NOT EXISTS appointments (
+        id              TEXT PRIMARY KEY,
+        shop_id         TEXT NOT NULL REFERENCES shops(id),
+        customer_id     TEXT REFERENCES customers(id),
+        technician_id   TEXT REFERENCES technicians(id),
+        service_id      TEXT REFERENCES services(id),
+        room_id         TEXT REFERENCES rooms(id),
+        customer_name   TEXT,
+        customer_phone  TEXT,
+        notes           TEXT,
+        scheduled_at    INTEGER NOT NULL,
+        duration_min    INTEGER NOT NULL DEFAULT 60,
+        status          TEXT NOT NULL DEFAULT 'pending', -- pending/confirmed/canceled/completed
+        ticket_id       TEXT REFERENCES tickets(id),
+        created_at      INTEGER NOT NULL,
+        updated_at      INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_appt_shop_status ON appointments(shop_id, status, scheduled_at);
+      CREATE INDEX IF NOT EXISTS idx_appt_scheduled ON appointments(scheduled_at);
+
+      CREATE TABLE IF NOT EXISTS notify_history (
+        id          TEXT PRIMARY KEY,
+        shop_id     TEXT,
+        event       TEXT NOT NULL,
+        content     TEXT,
+        channels    TEXT,   -- JSON array of {key, ok}
+        created_at  INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_notify_hist_shop ON notify_history(shop_id, created_at);
+    `)
+  }},
+  { version: 9, up: (db) => {
+    // 库存出入库流水（Phase 3）
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS stock_movements (
+        id          TEXT PRIMARY KEY,
+        shop_id     TEXT NOT NULL REFERENCES shops(id),
+        product_id  TEXT NOT NULL REFERENCES products(id),
+        type        TEXT NOT NULL,        -- in | out | adjust
+        qty         INTEGER NOT NULL,     -- 对库存的有符号增减
+        stock_after INTEGER,
+        ref_type    TEXT,                 -- order | cancel | manual
+        ref_id      TEXT,
+        notes       TEXT,
+        created_by  TEXT,
+        created_at  INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_stock_mov_product ON stock_movements(product_id, created_at);
+      CREATE INDEX IF NOT EXISTS idx_stock_mov_shop ON stock_movements(shop_id, created_at);
+    `)
+  }},
+  { version: 10, up: (db) => {
+    // 技师周排班（与 shifts 收银交接班无关）
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS technician_schedules (
+        id              TEXT PRIMARY KEY,
+        shop_id         TEXT NOT NULL REFERENCES shops(id),
+        technician_id   TEXT NOT NULL REFERENCES technicians(id),
+        date            TEXT NOT NULL,              -- YYYY-MM-DD 本地日
+        start_min       INTEGER NOT NULL,           -- 当日 0 点起分钟数
+        end_min         INTEGER NOT NULL,
+        shift_name      TEXT,
+        status          TEXT NOT NULL DEFAULT 'scheduled', -- scheduled/off
+        notes           TEXT,
+        created_at      INTEGER NOT NULL,
+        updated_at      INTEGER NOT NULL,
+        UNIQUE(shop_id, technician_id, date, start_min)
+      );
+      CREATE INDEX IF NOT EXISTS idx_tech_sched_week ON technician_schedules(shop_id, date);
+      CREATE INDEX IF NOT EXISTS idx_tech_sched_tech ON technician_schedules(technician_id, date);
+    `)
+  }},
+  { version: 11, up: (db) => {
+    // 充卡提成 + 拉新归属
+    for (const col of [
+      `ALTER TABLE customers ADD COLUMN owner_user_id TEXT`,
+      `ALTER TABLE customers ADD COLUMN owner_assigned_at INTEGER`,
+      `ALTER TABLE customers ADD COLUMN owner_assigned_by TEXT`,
+      `ALTER TABLE customers ADD COLUMN source TEXT`,
+      `ALTER TABLE wallet_transactions ADD COLUMN commission_cents INTEGER NOT NULL DEFAULT 0`,
+      `ALTER TABLE wallet_transactions ADD COLUMN commission_user_id TEXT`,
+    ]) {
+      try { db.exec(col) } catch (e) {
+        if (!String(e.message).includes('duplicate column')) throw e
+      }
+    }
+    try { db.exec(`CREATE INDEX IF NOT EXISTS idx_wallet_shop_created ON wallet_transactions(shop_id, created_at)`) } catch (_) {}
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS topup_commission_rules (
+        id              TEXT PRIMARY KEY,
+        shop_id         TEXT NOT NULL REFERENCES shops(id),
+        name            TEXT,
+        min_cents       INTEGER NOT NULL DEFAULT 0,
+        max_cents       INTEGER,                       -- NULL = 无上限
+        commission_type TEXT NOT NULL DEFAULT 'percent', -- percent: 万分比; fixed: 分
+        commission_value INTEGER NOT NULL DEFAULT 0,
+        active          INTEGER NOT NULL DEFAULT 1,
+        sort_order      INTEGER NOT NULL DEFAULT 0,
+        created_at      INTEGER NOT NULL,
+        updated_at      INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_topup_comm_rules_shop ON topup_commission_rules(shop_id, active);
+    `)
+  }},
+  { version: 12, up: (db) => {
+    // 退款（反结账）+ 预约来源（批次3）
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS refunds (
+        id              TEXT PRIMARY KEY,
+        shop_id         TEXT NOT NULL REFERENCES shops(id),
+        type            TEXT NOT NULL,              -- ticket | topup
+        ticket_id       TEXT REFERENCES tickets(id),
+        wallet_txn_id   TEXT,                       -- type=topup 时指向原充值流水
+        customer_id     TEXT REFERENCES customers(id),
+        amount_cents    INTEGER NOT NULL,           -- 退款总额（分，正数）
+        ticket_cents    INTEGER NOT NULL DEFAULT 0,
+        order_cents     INTEGER NOT NULL DEFAULT 0,
+        payment_method  TEXT,                       -- 原支付方式
+        refund_method   TEXT,                       -- 实际退回方式（原路/现金/余额）
+        reason          TEXT,
+        commission_cents INTEGER NOT NULL DEFAULT 0, -- 冲销的提成（正数记录，报表侧冲减）
+        created_by      TEXT,
+        created_at      INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_refunds_shop_created ON refunds(shop_id, created_at);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_refunds_ticket ON refunds(ticket_id) WHERE ticket_id IS NOT NULL;
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_refunds_wallet ON refunds(wallet_txn_id) WHERE wallet_txn_id IS NOT NULL;
+    `)
+    for (const col of [
+      `ALTER TABLE appointments ADD COLUMN created_by TEXT`,
+      `ALTER TABLE appointments ADD COLUMN source TEXT`, // guest | staff
+    ]) {
+      try { db.exec(col) } catch (e) {
+        if (!String(e.message).includes('duplicate column')) throw e
+      }
     }
   }},
 ]
@@ -374,9 +738,70 @@ function seedIfEmpty(db) {
     `)
     insertUser.run(nanoid(10), shopId, 'admin', hashPassword('admin1234'), 'admin', '管理员', now, now)
     insertUser.run(nanoid(10), shopId, 'pos',    hashPassword('pos12345'),    'pos',    '收银台', now, now)
+    insertUser.run(nanoid(10), shopId, 'cs',      hashPassword('cs123456'),     'cs',     '客服', now, now)
+
+    // 食物用品示例（顾客扫码可点单）
+    const insertProduct = db.prepare(`
+      INSERT INTO products(id, shop_id, name, category, price_cents, stock, sort_order, created_at, updated_at)
+      VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    const products = [
+      ['农夫山泉 550ml', '饮品', 300, null],
+      ['可口可乐 330ml', '饮品', 400, null],
+      ['红牛',         '饮品', 800, null],
+      ['桶装泡面',       '食品', 800, null],
+      ['卤蛋',         '食品', 300, null],
+      ['一次性防滑袜',    '用品', 500, 50],
+      ['抽纸包',        '用品', 200, null],
+    ]
+    products.forEach((p, i) => {
+      insertProduct.run(nanoid(10), shopId, p[0], p[1], p[2], p[3], i, now, now)
+    })
 
     db.prepare(`INSERT INTO meta(key, value) VALUES('seeded_at', ?)`).run(String(now))
   })()
 
-  console.log('[db] 已 seed 默认数据（1 店、6 项目、10 房间、3 技师、2 账号）')
+  console.log('[db] 已 seed 默认数据（1 店、6 项目、10 房间、3 技师、3 账号、7 商品）')
+}
+
+// ── 老库补种（幂等）────────────────────────────────
+// 已在运行的库不会走 seedIfEmpty，这里补齐新功能需要的基础数据。
+function seedExtras(db) {
+  const shop = db.prepare(`SELECT id FROM shops ORDER BY created_at LIMIT 1`).get()
+  if (!shop) return
+  const now = Date.now()
+
+  db.transaction(() => {
+    // 客服账号 cs / cs123456
+    const cs = db.prepare(`SELECT id FROM users WHERE username='cs'`).get()
+    if (!cs) {
+      db.prepare(`
+        INSERT INTO users(id, shop_id, username, password_hash, role, display_name, created_at, updated_at)
+        VALUES(?, ?, ?, ?, 'cs', '客服', ?, ?)
+      `).run(nanoid(10), shop.id, 'cs', hashPassword('cs123456'), now, now)
+      console.log('[db] 已补种客服账号 cs / cs123456')
+    }
+
+    // 商品示例（表为空才种）
+    const prodCount = db.prepare(`SELECT COUNT(*) AS c FROM products`).get().c
+    if (prodCount === 0) {
+      const insertProduct = db.prepare(`
+        INSERT INTO products(id, shop_id, name, category, price_cents, stock, sort_order, created_at, updated_at)
+        VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+      const products = [
+        ['农夫山泉 550ml', '饮品', 300, null],
+        ['可口可乐 330ml', '饮品', 400, null],
+        ['红牛',         '饮品', 800, null],
+        ['桶装泡面',       '食品', 800, null],
+        ['卤蛋',         '食品', 300, null],
+        ['一次性防滑袜',    '用品', 500, 50],
+        ['抽纸包',        '用品', 200, null],
+      ]
+      products.forEach((p, i) => {
+        insertProduct.run(nanoid(10), shop.id, p[0], p[1], p[2], p[3], i, now, now)
+      })
+      console.log('[db] 已补种 7 个示例商品')
+    }
+  })()
 }

@@ -30,7 +30,7 @@ export async function registerShopRoutes(fastify) {
     } catch (e) {
       req.log.error(e)
       if (e.code && e.statusCode) return reply.code(e.statusCode).send({ error: e.message, code: e.code })
-      return reply.code(500).send({ error: e.message })
+      throw e
     }
   })
 
@@ -51,7 +51,7 @@ export async function registerShopRoutes(fastify) {
     } catch (e) {
       req.log.error(e)
       if (e.code && e.statusCode) return reply.code(e.statusCode).send({ error: e.message, code: e.code })
-      return reply.code(500).send({ error: e.message })
+      throw e
     }
   })
 }

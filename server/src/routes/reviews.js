@@ -3,6 +3,10 @@
 // 顾客结账后可以评价技师（1-5 星 + 标签 + 文字）
 
 import { nanoid } from 'nanoid'
+import { ValidationError, ConflictError } from '../lib/errors.js'
+import { parsePagination } from '../lib/pagination.js'
+import { requireObject, requireString, requireInt } from '../lib/validate.js'
+import { requireRole, STAFF_ROLES } from '../auth/roles.js'
 
 function parseJsonSafe(raw, fallback) {
   if (raw == null) return fallback
@@ -13,47 +17,60 @@ function parseJsonSafe(raw, fallback) {
 export async function registerReviewRoutes(fastify) {
   const db = fastify.db
 
-  // 获取技师的评价列表（GET 公开，供顾客扫码查看）
+  // 获取技师的评价列表（GET 公开，供顾客扫码查看）— 标准分页
   fastify.get('/api/reviews', async (req, reply) => {
     try {
-      const { technician_id, shop_id, limit = 50 } = req.query
-      const lim = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200)
-      // 匿名评价不返回真实姓名
-      let sql = `SELECT r.*, CASE WHEN r.anonymous=1 THEN NULL ELSE c.name END AS customer_name
-        FROM reviews r LEFT JOIN customers c ON r.customer_id=c.id WHERE 1=1`
+      const { technician_id, shop_id } = req.query
+      const { page, pageSize, offset } = parsePagination(req)
+      const where = []
       const args = []
-      if (technician_id) { sql += ` AND r.technician_id=?`; args.push(technician_id) }
+      if (technician_id) { where.push('r.technician_id=?'); args.push(technician_id) }
       // 公开接口必须带 shop_id，避免匿名拉取全部租户评价
-      if (shop_id) { sql += ` AND r.shop_id=?`; args.push(shop_id) }
-      else if (!technician_id) { return reply.code(400).send({ error: 'shop_id or technician_id required' }) }
-      sql += ` ORDER BY r.created_at DESC LIMIT ?`
-      args.push(lim)
-      return db.prepare(sql).all(...args)
+      if (shop_id) { where.push('r.shop_id=?'); args.push(shop_id) }
+      else if (!technician_id) {
+        return reply.code(400).send({ error: 'shop_id or technician_id required', code: 'VALIDATION_ERROR' })
+      }
+      const whereSql = where.length ? ` AND ${where.join(' AND ')}` : ''
+      const total = Number(db.prepare(
+        `SELECT COUNT(*) AS total FROM reviews r WHERE 1=1${whereSql}`
+      ).get(...args)?.total ?? 0)
+      const rows = db.prepare(`
+        SELECT r.*, CASE WHEN r.anonymous=1 THEN NULL ELSE c.name END AS customer_name
+        FROM reviews r LEFT JOIN customers c ON r.customer_id=c.id
+        WHERE 1=1${whereSql}
+        ORDER BY r.created_at DESC LIMIT ? OFFSET ?
+      `).all(...args, pageSize, offset)
+      return { data: rows, total, page, pageSize }
     } catch (e) {
       req.log.error(e)
-      return reply.code(500).send({ error: '查询失败' })
+      return reply.code(500).send({ error: '查询失败', code: 'INTERNAL_ERROR' })
     }
   })
 
-  // 提交评价（需登录，见 auth/hook）
-  fastify.post('/api/reviews', async (req, reply) => {
+  // 提交评价（仅员工端；与顾客端 /api/guest/reviews 同规则：限本店 + 钟单状态 + 每单一次）
+  fastify.post('/api/reviews', { preHandler: requireRole(...STAFF_ROLES) }, async (req, reply) => {
     try {
-      const { ticket_id, technician_id, customer_id, rating, tags, comment, anonymous } = req.body || {}
+      requireObject(req.body)
+      const { ticket_id, customer_id, tags, comment, anonymous } = req.body
+      const technician_id = requireString(req.body.technician_id, 'technician_id', { max: 64 })
+      const rating = requireInt(req.body.rating, 'rating', { min: 1, max: 5 })
+      const r = Math.round(Number(rating))
       // 租户以登录用户为准，忽略客户端传入的 shop_id
       const effShop = req.user.shop_id
-      const r = Math.round(Number(rating))
-      if (!technician_id || !Number.isFinite(r) || r < 1 || r > 5) {
-        return reply.code(400).send({ error: 'technician_id, rating(1-5) required' })
-      }
       const tech = db.prepare(`SELECT id FROM technicians WHERE id=? AND shop_id=?`).get(technician_id, effShop)
-      if (!tech) return reply.code(400).send({ error: 'technician not found' })
+      if (!tech) return reply.code(400).send({ error: 'technician not found', code: 'VALIDATION_ERROR' })
       if (ticket_id) {
-        const ticket = db.prepare(`SELECT id FROM tickets WHERE id=? AND shop_id=?`).get(ticket_id, effShop)
-        if (!ticket) return reply.code(400).send({ error: 'ticket not found' })
+        const ticket = db.prepare(`SELECT id, status FROM tickets WHERE id=? AND shop_id=?`).get(ticket_id, effShop)
+        if (!ticket) return reply.code(400).send({ error: 'ticket not found', code: 'VALIDATION_ERROR' })
+        if (!['completed', 'paid'].includes(ticket.status)) {
+          throw new ValidationError('服务完成或结账后才能评价')
+        }
+        const already = db.prepare(`SELECT id FROM reviews WHERE ticket_id=?`).get(ticket_id)
+        if (already) throw new ConflictError('该服务单已评价')
       }
       if (customer_id) {
         const customer = db.prepare(`SELECT id FROM customers WHERE id=? AND shop_id=?`).get(customer_id, effShop)
-        if (!customer) return reply.code(400).send({ error: 'customer not found' })
+        if (!customer) return reply.code(400).send({ error: 'customer not found', code: 'VALIDATION_ERROR' })
       }
 
       const id = nanoid(12)
@@ -79,7 +96,8 @@ export async function registerReviewRoutes(fastify) {
       return { ok: true, id }
     } catch (e) {
       req.log.error(e)
-      return reply.code(500).send({ error: '提交失败' })
+      if (e.code && e.statusCode) return reply.code(e.statusCode).send({ error: e.message, code: e.code })
+      return reply.code(500).send({ error: '提交失败', code: 'INTERNAL_ERROR' })
     }
   })
 
@@ -127,7 +145,7 @@ export async function registerReviewRoutes(fastify) {
       }
     } catch (e) {
       req.log.error(e)
-      return reply.code(500).send({ error: e.message })
+      throw e
     }
   })
 }

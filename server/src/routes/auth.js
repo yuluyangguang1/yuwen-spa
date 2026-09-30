@@ -6,6 +6,8 @@
 
 import { verifyPassword, createToken, verifyToken, hashPassword, validatePassword } from '../auth/utils.js'
 import { checkRateLimit } from '../auth/ratelimit.js'
+import { requireObject, requireString } from '../lib/validate.js'
+import { BusinessError } from '../lib/errors.js'
 
 export async function registerAuthRoutes(fastify) {
   // ── 登录 ────────────────────────────────────────
@@ -13,11 +15,9 @@ export async function registerAuthRoutes(fastify) {
     try {
       // Rate limiting：同一 IP+用户名 5 分钟内最多 10 次（防伪造 XFF 绕过）
       const ip = req.ip || req.socket?.remoteAddress || 'unknown'
-      const { username, password } = req.body || {}
-
-      if (!username || !password) {
-        return reply.code(400).send({ error: '请输入用户名和密码' })
-      }
+      requireObject(req.body)
+      const username = requireString(req.body.username, 'username', { max: 64 })
+      const password = requireString(req.body.password, 'password', { max: 128, trim: false, min: 1 })
 
       const rl = checkRateLimit(`${ip}|${String(username).toLowerCase()}`)
       if (!rl.ok) {
@@ -59,6 +59,7 @@ export async function registerAuthRoutes(fastify) {
       }
     } catch (e) {
       req.log.error(e)
+      if (e.code && e.statusCode) return reply.code(e.statusCode).send({ error: e.message, code: e.code })
       return reply.code(500).send({ error: '服务器内部错误' })
     }
   })
@@ -89,16 +90,14 @@ export async function registerAuthRoutes(fastify) {
   // ── 修改自己的密码 ──────────────────────────────
   fastify.put('/api/auth/password', async (req, reply) => {
     try {
-      const { oldPassword, newPassword } = req.body || {}
+      requireObject(req.body)
+      const oldPassword = requireString(req.body.oldPassword, 'oldPassword', { max: 128, trim: false })
+      const newPassword = requireString(req.body.newPassword, 'newPassword', { max: 128, trim: false })
 
       // 防旧密码暴力破解：同用户 15 分钟最多 10 次
       const rl = checkRateLimit(`${req.ip}|${req.user.sub}|pwd`, { maxAttempts: 10, windowMs: 15 * 60 * 1000 })
       if (!rl.ok) {
         return reply.code(429).send({ error: `尝试过于频繁，请 ${rl.retryAfter} 秒后重试` })
-      }
-
-      if (!oldPassword || !newPassword) {
-        return reply.code(400).send({ error: '请输入旧密码和新密码' })
       }
 
       const pwdErr = validatePassword(newPassword)
@@ -119,6 +118,7 @@ export async function registerAuthRoutes(fastify) {
       return { ok: true }
     } catch (e) {
       req.log.error(e)
+      if (e.code && e.statusCode) return reply.code(e.statusCode).send({ error: e.message, code: e.code })
       return reply.code(500).send({ error: '服务器内部错误' })
     }
   })

@@ -5,14 +5,18 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { get, post, put } from '@/lib/api'
-import { Plus, Key, Ban, CheckCircle, Edit2, X } from 'lucide-react'
+import { Plus, Key, Ban, CheckCircle, Edit2, X, Users } from 'lucide-react'
 import { Field } from '@/components/Field'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { EmptyState } from '@/components/EmptyState'
+import { TableSkeleton } from '@/components/LoadingSkeleton'
+import { toast } from '@/lib/toast'
 
 const ROLE_LABELS: Record<string, string> = {
   admin: '管理员',
   pos: '收银',
   tech: '技师',
+  cs: '客服',
 }
 
 export default function AdminUsers() {
@@ -26,7 +30,7 @@ export default function AdminUsers() {
     message: string
   }>({ open: false, onConfirm: () => {}, message: '' })
 
-  const { data: users = [] } = useQuery({
+  const { data: users = [], isLoading: usersLoading } = useQuery({
     queryKey: ['users'],
     queryFn: () => get<any[]>('/api/users?pageSize=500'),
   })
@@ -36,25 +40,32 @@ export default function AdminUsers() {
   // 创建用户
   const createMut = useMutation({
     mutationFn: (data: any) => post('/api/users', data),
-    onSuccess: () => { invalidate(); setShowForm(false) },
+    onSuccess: () => { invalidate(); setShowForm(false); toast.success('账号已创建') },
+    onError: (e: any) => toast.error(e.message || '创建失败'),
   })
 
   // 修改用户
   const updateMut = useMutation({
     mutationFn: ({ id, ...data }: any) => put(`/api/users/${id}`, data),
-    onSuccess: () => { invalidate(); setEditUser(null) },
+    onSuccess: () => { invalidate(); setEditUser(null); toast.success('已保存') },
+    onError: (e: any) => toast.error(e.message || '保存失败'),
   })
 
-  // 重置密码
+  // 重置密码（失败不关窗）
   const resetPwdMut = useMutation({
     mutationFn: ({ id, newPassword }: any) => put(`/api/users/${id}/password`, { newPassword }),
-    onSuccess: () => setResetPwdUser(null),
+    onSuccess: () => { setResetPwdUser(null); toast.success('密码已重置') },
+    onError: (e: any) => toast.error(e.message || '重置失败'),
   })
 
   // 禁用/启用
   const toggleMut = useMutation({
     mutationFn: ({ id, active }: any) => put(`/api/users/${id}`, { active }),
-    onSuccess: invalidate,
+    onSuccess: (_: any, vars: any) => {
+      invalidate()
+      toast.success(vars?.active ? '已启用' : '已禁用')
+    },
+    onError: (e: any) => toast.error(e.message || '操作失败'),
   })
 
   const handleToggle = (u: any, active: number) => {
@@ -82,8 +93,10 @@ export default function AdminUsers() {
       </div>
 
       {/* 用户列表 */}
-      {users.length === 0 ? (
-        <div className="glass-card p-8 text-center text-white/30 text-sm">暂无账号</div>
+      {usersLoading && !users.length ? (
+        <div className="glass-card p-4"><TableSkeleton rows={6} /></div>
+      ) : users.length === 0 ? (
+        <EmptyState icon={Users} title="暂无账号" hint="点右上角「新建账号」创建收银、技师、客服账号" />
       ) : (
         <div className="space-y-2">
           {users.map((u: any) => (
@@ -94,6 +107,7 @@ export default function AdminUsers() {
                   <span className={`text-[10px] px-1.5 py-0.5 rounded ${
                     u.role === 'admin' ? 'bg-tan/20 text-tan' :
                     u.role === 'pos' ? 'bg-blue-500/20 text-blue-400' :
+                    u.role === 'cs' ? 'bg-purple-500/20 text-purple-400' :
                     'bg-green-500/20 text-green-400'
                   }`}>
                     {ROLE_LABELS[u.role] || u.role}
@@ -205,18 +219,26 @@ function UserForm({ title, initial, onSubmit, onClose, error, loading }: {
     password: '',
     role: initial?.role || 'pos',
     display_name: initial?.display_name || '',
+    technician_id: initial?.technician_id || '',
+  })
+
+  const { data: techs = [] } = useQuery({
+    queryKey: ['technicians'],
+    queryFn: () => get<any[]>('/api/technicians?pageSize=500'),
+    enabled: form.role === 'tech',
   })
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     const data: any = { ...form }
     if (initial && !data.password) delete data.password  // 编辑时不改密码
+    data.technician_id = form.role === 'tech' ? (form.technician_id || null) : null
     onSubmit(data)
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="glass-card w-full max-w-sm p-5 space-y-4">
+      <div className="glass-card w-full max-w-sm p-5 space-y-4 max-h-[85dvh] overflow-y-auto">
         <div className="flex items-center justify-between">
           <h2 className="font-medium">{title}</h2>
           <button onClick={onClose} className="text-white/30 hover:text-white"><X size={18} /></button>
@@ -232,7 +254,7 @@ function UserForm({ title, initial, onSubmit, onClose, error, loading }: {
           <div>
             <label className="block text-xs text-white/40 mb-1">角色</label>
             <div className="flex gap-2">
-              {['admin', 'pos', 'tech'].map(r => (
+              {['admin', 'pos', 'cs', 'tech'].map(r => (
                 <button
                   key={r}
                   type="button"
@@ -248,6 +270,25 @@ function UserForm({ title, initial, onSubmit, onClose, error, loading }: {
               ))}
             </div>
           </div>
+
+          {form.role === 'tech' && (
+            <div>
+              <label className="block text-xs text-white/40 mb-1">关联技师（技师端「今日班次」/ 领钟开钟需此关联）</label>
+              <select
+                value={form.technician_id}
+                onChange={e => setForm({ ...form, technician_id: e.target.value })}
+                className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-sm"
+              >
+                <option value="">— 未关联 —</option>
+                {techs.map(t => (
+                  <option key={t.id} value={t.id}>{t.number} {t.name}</option>
+                ))}
+              </select>
+              {!techs.length && (
+                <p className="text-[10px] text-white/30 mt-1">暂无技师档案，请先在「技师」页添加</p>
+              )}
+            </div>
+          )}
 
           {error && <p className="text-red-400 text-xs text-center">{error}</p>}
 
@@ -276,7 +317,7 @@ function ResetPwdForm({ username, onSubmit, onClose, error, loading }: {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="glass-card w-full max-w-sm p-5 space-y-4">
+      <div className="glass-card w-full max-w-sm p-5 space-y-4 max-h-[85dvh] overflow-y-auto">
         <div className="flex items-center justify-between">
           <h2 className="font-medium">重置密码</h2>
           <button onClick={onClose} className="text-white/30 hover:text-white"><X size={18} /></button>

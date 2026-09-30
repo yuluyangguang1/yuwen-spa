@@ -9,6 +9,7 @@ import { registerUserRoutes } from './users.js'
 import { registerHealthRoutes } from './health.js'
 import { registerShopRoutes } from './shops.js'
 import { registerServiceRoutes } from './services.js'
+import { registerProductRoutes } from './products.js'
 import { registerTechnicianRoutes } from './technicians.js'
 import { registerRoomRoutes } from './rooms.js'
 import { registerCustomerRoutes } from './customers.js'
@@ -20,6 +21,14 @@ import { registerDashboardRoutes } from './dashboard.js'
 import { registerReportRoutes } from './reports.js'
 import { registerPaymentRoutes } from './payment.js'
 import { registerGuestRoutes } from './guest.js'
+import { registerShiftRoutes } from './shifts.js'
+import { registerAuditRoutes } from './audit.js'
+import { registerCouponRoutes } from './coupons.js'
+import { registerAppointmentRoutes } from './appointments.js'
+import { registerInventoryRoutes } from './inventory.js'
+import { registerScheduleRoutes } from './schedules.js'
+import { registerCommissionRuleRoutes } from './commission-rules.js'
+import { registerBackupRoutes } from './backup.js'
 
 export async function registerRoutes(fastify) {
   // 1. 先注册 auth hook（拦截未登录请求）
@@ -31,6 +40,7 @@ export async function registerRoutes(fastify) {
   await registerHealthRoutes(fastify)
   await registerShopRoutes(fastify)
   await registerServiceRoutes(fastify)
+  await registerProductRoutes(fastify)
   await registerTechnicianRoutes(fastify)
   await registerRoomRoutes(fastify)
   await registerCustomerRoutes(fastify)
@@ -42,4 +52,12 @@ export async function registerRoutes(fastify) {
   await registerReportRoutes(fastify)
   await registerPaymentRoutes(fastify)
   await registerGuestRoutes(fastify)
+  await registerShiftRoutes(fastify)
+  await registerAuditRoutes(fastify)
+  await registerCouponRoutes(fastify)
+  await registerAppointmentRoutes(fastify)
+  await registerInventoryRoutes(fastify)
+  await registerScheduleRoutes(fastify)
+  await registerCommissionRuleRoutes(fastify)
+  await registerBackupRoutes(fastify)
 }

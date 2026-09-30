@@ -1,4 +1,5 @@
 @echo off
+setlocal EnableDelayedExpansion
 chcp 65001 >nul
 title 足韵 yuwen-spa — 启动中
 rem ──────────────────────────────────────────────
@@ -10,6 +11,23 @@ echo.
 echo   足韵 yuwen-spa — 启动中
 echo   ──────────────────────
 echo.
+
+rem ── 0. JWT_SECRET（缺失则从 .env 加载或生成）──
+if not defined JWT_SECRET (
+  if exist "%~dp0..\.env" (
+    for /f "usebackq tokens=1,* delims==" %%A in ("%~dp0..\.env") do (
+      if "%%A"=="JWT_SECRET" set "JWT_SECRET=%%B"
+    )
+  )
+)
+if not defined JWT_SECRET (
+  where node >nul 2>&1
+  if !ERRORLEVEL! EQU 0 (
+    for /f %%A in ('node -e "console.log(require(''crypto'').randomBytes(32).toString(''hex''))"') do set "JWT_SECRET=%%A"
+    echo JWT_SECRET=!JWT_SECRET!>>"%~dp0..\.env"
+    echo [✓] 已生成 JWT_SECRET 并写入 .env
+  )
+)
 
 rem ── 1. 检测 Node.js ─────────────────────────
 where node >nul 2>&1
@@ -41,20 +59,7 @@ if not exist "%~dp0..\server\node_modules" (
   call npm install --silent
 )
 
-rem ── 4. 检查 Hermes Gateway ─────────────────
-echo [✓] 检查 Hermes Gateway...
-powershell -Command "& {try {$r=Invoke-WebRequest -Uri 'http://127.0.0.1:8642/health' -UseBasicParsing -TimeoutSec 2; if ($r.StatusCode -eq 200) {exit 0}} catch {}; exit 1}" >nul 2>&1
-if %ERRORLEVEL% NEQ 0 (
-  echo [!] Hermes Gateway 未运行
-  echo     请先运行 setup-hermes.bat 安装配置
-  echo.
-  echo     或手动启动: hermes gateway run
-  echo.
-) else (
-  echo [✓] Hermes Gateway 运行中
-)
-
-rem ── 5. 启动足韵后端 ─────────────────────────
+rem ── 4. 启动足韵后端 ─────────────────────────
 echo [✓] 启动足韵后端 (端口 %PORT%)...
 
 set PORT=%PORT%

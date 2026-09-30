@@ -2,13 +2,16 @@ import { useState } from 'react'
 import { useSimpleCRUD } from '@/hooks/useCRUD'
 import { get, post, put, del } from '@/lib/api'
 import { formatMoney } from '@/lib/utils'
-import { Plus, Edit2, Trash2, X } from 'lucide-react'
+import { Plus, Edit2, Trash2, X, Scissors } from 'lucide-react'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { Field } from '@/components/Field'
+import { EmptyState } from '@/components/EmptyState'
+import { TableSkeleton } from '@/components/LoadingSkeleton'
 
 export default function AdminServices() {
   const {
     data: services = [],
+    isLoading,
     showForm,
     editItem,
     setShowForm,
@@ -23,7 +26,7 @@ export default function AdminServices() {
     queryKey: ['services'],
     queryFn: () => get('/api/services?pageSize=500'),
     createFn: (data: any) => post('/api/services', data),
-    updateFn: ({ id, ...data }: any) => put(`/api/services/${id}`, data),
+    updateFn: (id: string, data: any) => put(`/api/services/${id}`, data),
     deleteFn: (id: string) => del(`/api/services/${id}`),
   })
 
@@ -37,8 +40,15 @@ export default function AdminServices() {
         </button>
       </div>
 
-      <div className="glass-card overflow-hidden">
-        <table className="w-full text-sm">
+      {isLoading && !services.length ? (
+        <div className="glass-card p-4"><TableSkeleton rows={6} /></div>
+      ) : services.length === 0 ? (
+        <EmptyState icon={Scissors} title="暂无服务项目"
+          hint="配置项目、时长与提成后，即可开钟结账"
+          action={{ label: '新增项目', onClick: () => setShowForm(true) }} />
+      ) : (
+      <div className="glass-card overflow-x-auto">
+        <table className="w-full text-sm min-w-[620px]">
           <thead>
             <tr className="border-b border-white/5 text-white/40 text-xs">
               <th className="text-left p-3">名称</th>
@@ -68,8 +78,8 @@ export default function AdminServices() {
                 </td>
                 <td className="p-3 text-center">
                   <div className="flex items-center justify-center gap-1">
-                    <button onClick={() => setEditItem(s)} className="p-1.5 text-white/30 hover:text-tan rounded"><Edit2 size={14} /></button>
-                    <button onClick={() => requestDelete(`停用「${s.name}」？`, () => deleteMut.mutate(s.id))} className="p-1.5 text-white/30 hover:text-red-400 rounded"><Trash2 size={14} /></button>
+                    <button onClick={() => setEditItem(s)} className="p-1.5 text-white/50 hover:text-tan rounded"><Edit2 size={14} /></button>
+                    <button onClick={() => requestDelete(`停用「${s.name}」？`, () => deleteMut.mutate(s.id))} className="p-1.5 text-white/50 hover:text-red-400 rounded"><Trash2 size={14} /></button>
                   </div>
                 </td>
               </tr>
@@ -77,6 +87,7 @@ export default function AdminServices() {
           </tbody>
         </table>
       </div>
+      )}
 
       {showForm && <ServiceForm title="新增项目" shop_id={services[0]?.shop_id}
         onSubmit={(d) => createMut.mutate(d)} onClose={() => setShowForm(false)}
@@ -125,7 +136,7 @@ function ServiceForm({ title, initial, shop_id, onSubmit, onClose, error, loadin
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="glass-card w-full max-w-sm p-5 space-y-4">
+      <div className="glass-card w-full max-w-sm p-5 space-y-4 max-h-[85dvh] overflow-y-auto">
         <div className="flex items-center justify-between">
           <h2 className="font-medium">{title}</h2>
           <button onClick={onClose} className="text-white/30 hover:text-white"><X size={18} /></button>

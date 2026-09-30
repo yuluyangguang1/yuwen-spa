@@ -5,12 +5,24 @@ import os from 'node:os'
 import { getLanIPs } from '../lib/network.js'
 
 export async function registerHealthRoutes(fastify) {
-  fastify.get('/api/health', async () => ({
-    ok: true,
-    ts: Date.now(),
-    uptime: process.uptime(),
-    version: '0.1.0',
-  }))
+  fastify.get('/api/health', async (req, reply) => {
+    // uncaughtException 后降级为 503，便于反代/探活识别
+    if (globalThis.__yuwenUnhealthy) {
+      return reply.code(503).send({
+        ok: false,
+        degraded: true,
+        ts: Date.now(),
+        uptime: process.uptime(),
+        version: '0.1.0',
+      })
+    }
+    return {
+      ok: true,
+      ts: Date.now(),
+      uptime: process.uptime(),
+      version: '0.1.0',
+    }
+  })
 
   // 系统信息：登录后可见（面板展示用），不再匿名暴露内网拓扑
   fastify.get('/api/system', async (req) => ({

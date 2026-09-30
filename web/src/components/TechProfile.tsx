@@ -37,8 +37,10 @@ export const TechProfile = memo(function TechProfile({ techId, onClose, onSelect
         <div className="p-5 space-y-5">
           {/* 基本信息 */}
           <div className="flex items-center gap-4">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-tan/30 to-tan/5 flex items-center justify-center">
-              <span className="text-2xl font-bold text-tan">{profile.number}</span>
+            <div className="w-16 h-16 shrink-0 rounded-full bg-gradient-to-br from-tan/30 to-tan/5 flex items-center justify-center overflow-hidden">
+              {profile.avatar
+                ? <img src={profile.avatar} alt={`${profile.name}头像`} width={600} height={800} decoding="async" className="w-full h-full object-cover" />
+                : <span className="text-2xl font-bold text-tan">{profile.number}</span>}
             </div>
             <div className="flex-1">
               <div className="text-lg font-medium">{profile.name}</div>

@@ -12,6 +12,8 @@ server/db/*.db-journal
 server/db/*.db-wal
 server/db/*.db-shm
 server/db/backups/
+# 原子写入残留的临时配置
+server/db/notify-config.*.json
 
 # 前端构建产物
 server/public/

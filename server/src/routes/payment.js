@@ -84,8 +84,8 @@ export async function registerPaymentRoutes(fastify) {
         // 事务内再验状态 + 条件更新，防并发双写
         const cur = db.prepare(`SELECT status FROM tickets WHERE id=?`).get(outTradeNo)
         if (!cur || cur.status === 'paid') return cur?.status === 'paid' ? 'already' : 'gone'
-        if (cur.status === 'canceled') return 'canceled'
-        const res = db.prepare(`UPDATE tickets SET status='paid', paid_at=?, payment_method='wechat', updated_at=? WHERE id=? AND status NOT IN ('paid','canceled')`)
+        if (cur.status === 'canceled' || cur.status === 'refunded') return 'canceled'
+        const res = db.prepare(`UPDATE tickets SET status='paid', paid_at=?, payment_method='wechat', updated_at=? WHERE id=? AND status NOT IN ('paid','canceled','refunded')`)
           .run(now, now, outTradeNo)
         if (res.changes === 0) return 'already'
         db.prepare(`INSERT INTO audit_logs(id, shop_id, action, target_type, target_id, payload, created_at) VALUES(?, ?, 'ticket.pay', 'ticket', ?, ?, ?)`)
@@ -152,8 +152,8 @@ export async function registerPaymentRoutes(fastify) {
       const updated = db.transaction(() => {
         const cur = db.prepare(`SELECT status FROM tickets WHERE id=?`).get(out_trade_no)
         if (!cur || cur.status === 'paid') return cur?.status === 'paid' ? 'already' : 'gone'
-        if (cur.status === 'canceled') return 'canceled'
-        const res = db.prepare(`UPDATE tickets SET status='paid', paid_at=?, payment_method='alipay', updated_at=? WHERE id=? AND status NOT IN ('paid','canceled')`)
+        if (cur.status === 'canceled' || cur.status === 'refunded') return 'canceled'
+        const res = db.prepare(`UPDATE tickets SET status='paid', paid_at=?, payment_method='alipay', updated_at=? WHERE id=? AND status NOT IN ('paid','canceled','refunded')`)
           .run(now, now, out_trade_no)
         if (res.changes === 0) return 'already'
         db.prepare(`INSERT INTO audit_logs(id, shop_id, action, target_type, target_id, payload, created_at) VALUES(?, ?, 'ticket.pay', 'ticket', ?, ?, ?)`)

@@ -116,12 +116,31 @@ function generateDailySummary(db) {
   console.log(`  技师排名: ${techs.map(t => `${t.name}(${t.tickets}单/${t.revenue}分)`).join(', ')}`)
 }
 
+// 历史表保留期：防止 notify/审计/AI 对话无限膨胀拖慢备份
+function pruneHistoryTables(db) {
+  try {
+    const now = Date.now()
+    const ninety = now - 90 * 86400000
+    const thirty = now - 30 * 86400000
+    db.prepare(`DELETE FROM notify_history WHERE created_at < ?`).run(ninety)
+    db.prepare(`DELETE FROM ai_chats WHERE created_at < ?`).run(thirty)
+    try {
+      db.prepare(`DELETE FROM audit_logs WHERE created_at < ?`).run(now - 180 * 86400000)
+    } catch { /* 表可能不存在 */ }
+  } catch (e) {
+    console.error('[scheduler] prune history failed:', e.message)
+  }
+}
+
 /**
  * 注册定时任务调度器
  * @param {import('fastify').FastifyInstance} fastify
  */
 export async function registerScheduler(fastify) {
   const db = fastify.db
+
+  // 启动即清理一次过期历史
+  pruneHistoryTables(db)
 
   // ── 手动触发端点 ──────────────────────────
   fastify.post('/api/scheduler/run', async (req, reply) => {
@@ -137,6 +156,9 @@ export async function registerScheduler(fastify) {
       if (type === 'all' || type === 'summary') {
         generateDailySummary(db)
       }
+      if (type === 'all' || type === 'prune') {
+        pruneHistoryTables(db)
+      }
 
       return { success: true, triggered: type, time: Date.now() }
     } catch (e) {
@@ -145,16 +167,6 @@ export async function registerScheduler(fastify) {
     }
   })
 
-  // ── 每小时执行一次快照 ────────────────────
-  setInterval(() => {
-    console.log('[scheduler] 执行每小时快照任务')
-    try {
-      generateSnapshot(db)
-    } catch (e) {
-      console.error('[scheduler] 快照任务失败:', e.message)
-    }
-  }, 60 * 60 * 1000)
-
   // ── 每天午夜执行一次每日总结 ──────────────
   // 每次触发后重新对齐到下一个 0 点，避免 setInterval 漂移
   function scheduleDailySummary() {
@@ -162,21 +174,33 @@ export async function registerScheduler(fastify) {
     const midnight = new Date(now)
     midnight.setHours(24, 0, 0, 0)
     const msUntilMidnight = midnight.getTime() - now
-    setTimeout(() => {
+    const t = setTimeout(() => {
       console.log('[scheduler] 执行每日总结任务')
       try {
         generateDailySummary(db)
+        pruneHistoryTables(db)
       } catch (e) {
         console.error('[scheduler] 每日总结任务失败:', e.message)
       }
       scheduleDailySummary()
     }, msUntilMidnight)
+    t.unref?.()
   }
   scheduleDailySummary()
+
+  const hourly = setInterval(() => {
+    console.log('[scheduler] 执行每小时快照任务')
+    try {
+      generateSnapshot(db)
+    } catch (e) {
+      console.error('[scheduler] 快照任务失败:', e.message)
+    }
+  }, 60 * 60 * 1000)
+  hourly.unref?.()
 
   // 启动时记录
   console.log('[scheduler] 定时任务调度器已启动')
   console.log('[scheduler]   每小时: 生成业务报表快照 → db/reports/snapshots/')
-  console.log('[scheduler]   每天0点: 生成每日总结')
+  console.log('[scheduler]   每天0点: 生成每日总结 + 清理历史')
   console.log('[scheduler]   POST /api/scheduler/run  手动触发')
 }
