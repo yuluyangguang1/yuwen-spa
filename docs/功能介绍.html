@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>羽AI 足浴店管理系统 — 功能介绍</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', sans-serif;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    color: #e8e8e8;
+    line-height: 1.8;
+    padding: 40px 20px;
+  }
+  .container { max-width: 900px; margin: 0 auto; }
+  .header { text-align: center; padding: 60px 0 40px; }
+  .header h1 {
+    font-size: 2.8em;
+    font-weight: 700;
+    background: linear-gradient(135deg, #d4a574, #e8c9a0);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 12px;
+  }
+  .header .subtitle { font-size: 1.1em; color: #a0a0b0; }
+  .header .version {
+    display: inline-block;
+    margin-top: 16px;
+    padding: 4px 16px;
+    background: rgba(212,165,116,0.15);
+    border: 1px solid rgba(212,165,116,0.3);
+    border-radius: 20px;
+    font-size: 0.85em;
+    color: #d4a574;
+  }
+  .section {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 16px;
+    padding: 32px;
+    margin-bottom: 24px;
+    backdrop-filter: blur(10px);
+  }
+  .section h2 {
+    font-size: 1.5em;
+    color: #d4a574;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .section h2 .icon {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, #d4a574, #b8956a);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 1.1em;
+  }
+  .feature-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 16px;
+    margin-top: 16px;
+  }
+  .feature-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 12px;
+    padding: 20px;
+    transition: transform 0.2s, border-color 0.2s;
+  }
+  .feature-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(212,165,116,0.3);
+  }
+  .feature-card h3 {
+    font-size: 1.05em;
+    color: #e8c9a0;
+    margin-bottom: 8px;
+  }
+  .feature-card p {
+    font-size: 0.9em;
+    color: #a0a0b0;
+    line-height: 1.6;
+  }
+  .flow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin: 16px 0;
+  }
+  .flow-step {
+    background: rgba(212,165,116,0.1);
+    border: 1px solid rgba(212,165,116,0.2);
+    border-radius: 10px;
+    padding: 12px 18px;
+    font-size: 0.9em;
+    color: #e8c9a0;
+    white-space: nowrap;
+  }
+  .flow-arrow {
+    color: #d4a574;
+    font-size: 1.2em;
+  }
+  .highlight {
+    background: rgba(212,165,116,0.08);
+    border-left: 3px solid #d4a574;
+    padding: 12px 16px;
+    border-radius: 0 8px 8px 0;
+    margin: 12px 0;
+    font-size: 0.9em;
+    color: #c0c0d0;
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin-top: 16px;
+  }
+  .stat-item {
+    text-align: center;
+    padding: 16px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 10px;
+  }
+  .stat-item .num {
+    font-size: 1.8em;
+    font-weight: 700;
+    color: #d4a574;
+  }
+  .stat-item .label {
+    font-size: 0.8em;
+    color: #8080a0;
+    margin-top: 4px;
+  }
+  .footer {
+    text-align: center;
+    padding: 40px 0 20px;
+    color: #606080;
+    font-size: 0.85em;
+  }
+  .tag {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.75em;
+    margin-right: 6px;
+    margin-bottom: 4px;
+  }
+  .tag-new { background: rgba(76,175,80,0.15); color: #81c784; border: 1px solid rgba(76,175,80,0.3); }
+  .tag-fix { background: rgba(255,152,0,0.15); color: #ffb74d; border: 1px solid rgba(255,152,0,0.3); }
+  .tag-opt { background: rgba(33,150,243,0.15); color: #64b5f6; border: 1px solid rgba(33,150,243,0.3); }
+</style>
+</head>
+<body>
+<div class="container">
+
+<div class="header">
+  <h1>羽AI 足浴店管理系统</h1>
+  <p class="subtitle">本地部署 · 扫码下单 · 智能派单 · 排钟轮转 · 多端协同</p>
+  <span class="version">v2.0 · 2026 年 10 月</span>
+</div>
+
+<!-- 核心数据 -->
+<div class="section">
+  <h2><span class="icon">📊</span>系统概览</h2>
+  <div class="stats">
+    <div class="stat-item"><div class="num">8</div><div class="label">技师管理</div></div>
+    <div class="stat-item"><div class="num">15+</div><div class="label">功能模块</div></div>
+    <div class="stat-item"><div class="num">18/18</div><div class="label">端到端测试</div></div>
+    <div class="stat-item"><div class="num">31/31</div><div class="label">单元测试</div></div>
+    <div class="stat-item"><div class="num">0</div><div class="label">云服务依赖</div></div>
+    <div class="stat-item"><div class="num">100%</div><div class="label">数据本地存储</div></div>
+  </div>
+</div>
+
+<!-- 顾客端 -->
+<div class="section">
+  <h2><span class="icon">📱</span>顾客端 — 扫码全流程</h2>
+  <p style="color:#a0a0b0;margin-bottom:12px;">顾客无需注册登录，扫码即可完成从下单到评价的全流程。</p>
+
+  <div class="flow">
+    <div class="flow-step">进店扫大堂码</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">选项目 + 选技师</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">提交订单</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">客服派单</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">扫房间码看进度</div>
+    <span class="flow-arrow">→</span>
+    <div class="flow-step">服务完成评价</div>
+  </div>
+
+  <div class="feature-grid">
+    <div class="feature-card">
+      <h3>🏷️ 大堂码下单</h3>
+      <p>顾客进店扫码，选择服务项目和心仪技师，提交订单后等待客服分配房间。</p>
+    </div>
+    <div class="feature-card">
+      <h3>🚪 房间码跟踪</h3>
+      <p>客服分配房间后，顾客扫房间码即可查看服务进度、加钟、提交评价。</p>
+    </div>
+    <div class="feature-card">
+      <h3>🔐 免登录凭证</h3>
+      <p>HMAC-SHA256 签名 Token，24 小时有效，自动持久化到 localStorage，刷新不丢。</p>
+    </div>
+    <div class="feature-card">
+      <h3>👥 多顾客房间</h3>
+      <p>大厅/包间/VIP 房间支持多位顾客同时使用，各自扫码查看自己的订单。</p>
+    </div>
+    <div class="feature-card">
+      <h3>⭐ 评价系统</h3>
+      <p>服务完成后顾客可直接评价技师，评分计入技师档案。</p>
+    </div>
+    <div class="feature-card">
+      <h3>📶 实时推送</h3>
+      <p>WebSocket 实时推送订单状态变更，顾客无需手动刷新。</p>
+    </div>
+  </div>
+</div>
+
+<!-- 客服端 -->
+<div class="section">
+  <h2><span class="icon">🎛️</span>客服派单台</h2>
+  <p style="color:#a0a0b0;margin-bottom:12px;">移动端优先的派单界面，客服一键完成房间和技师分配。</p>
+
+  <div class="feature-grid">
+    <div class="feature-card">
+      <h3>📋 排队列表</h3>
+      <p>实时显示所有待派单订单，按时间排序，支持筛选。</p>
+    </div>
+    <div class="feature-card">
+      <h3>🎯 一键派单</h3>
+      <p>选择房间和技师后点击"确认派单"，系统自动校验容量和技师状态。</p>
+    </div>
+    <div class="feature-card">
+      <h3>🔄 排钟轮转</h3>
+      <p>不指定技师时自动按轮转顺序分配，确保公平。</p>
+    </div>
+    <div class="feature-card">
+      <h3>📊 状态看板</h3>
+      <p>技师空闲/忙碌状态实时更新，房间占用情况一目了然。</p>
+    </div>
+  </div>
+
+  <div class="highlight">
+    <strong>排钟轮转机制：</strong>系统支持顺序轮排制，技师按 rotation_order 排序，每次派单后自动排到队尾。支持按等级、从业年限、明星标记等多维度排序。
+  </div>
+</div>
+
+<!-- 技师管理 -->
+<div class="section">
+  <h2><span class="icon">👤</span>技师管理</h2>
+  <p style="color:#a0a0b0;margin-bottom:12px;">完整的技师档案管理体系。</p>
+
+  <div class="feature-grid">
+    <div class="feature-card">
+      <h3>📸 技师档案</h3>
+      <p>头像、等级、从业年限、擅长项目、个人简介，支持照片上传。</p>
+    </div>
+    <div class="feature-card">
+      <h3>⭐ 明星技师</h3>
+      <p>标记明星技师，在顾客端优先展示，提升品牌形象。</p>
+    </div>
+    <div class="feature-card">
+      <h3>📈 评分系统</h3>
+      <p>顾客评价汇总为技师评分，支持 AI 评分和人工评分双轨制。</p>
+    </div>
+    <div class="feature-card">
+      <h3>🎯 轮转管理</h3>
+      <p>rotation_order / rotation_active / rotation_weight 精细控制轮转策略。</p>
+    </div>
+  </div>
+</div>
+
+<!-- 技术架构 -->
+<div class="section">
+  <h2><span class="icon">⚙️</span>技术架构</h2>
+
+  <div class="feature-grid">
+    <div class="feature-card">
+      <h3>🖥️ 后端</h3>
+      <p>Node.js 22 + Fastify 5 + SQLite（better-sqlite3）<br>RESTful API + WebSocket 实时推送</p>
+    </div>
+    <div class="feature-card">
+      <h3>🎨 前端</h3>
+      <p>React 19 + Vite 6 + TypeScript 7<br>Tailwind CSS 3 + lucide-react 图标</p>
+    </div>
+    <div class="feature-card">
+      <h3>📱 PWA</h3>
+      <p>支持添加到主屏幕，离线缓存，移动端原生体验</p>
+    </div>
+    <div class="feature-card">
+      <h3>🔒 安全</h3>
+      <p>JWT 认证 + HMAC 签名凭证 + 按身份分桶限流 + SQL 参数化</p>
+    </div>
+  </div>
+
+  <div class="highlight">
+    <strong>限流策略：</strong>按身份分桶（员工 user:id / 顾客 guest:ticketId / 匿名 ip:addr），读写分离（读 1200/分，写 120/分），互不影响。
+  </div>
+</div>
+
+<!-- 本次更新 -->
+<div class="section">
+  <h2><span class="icon">🆕</span>本次更新亮点</h2>
+
+  <div style="margin-top:12px;">
+    <span class="tag tag-new">新增</span><span class="tag tag-fix">修复</span><span class="tag tag-opt">优化</span>
+  </div>
+
+  <div class="feature-grid" style="margin-top:16px;">
+    <div class="feature-card">
+      <h3><span class="tag tag-fix">修复</span>数据一致性</h3>
+      <p>assign 时 pending 状态不再消耗轮转机会；pay/changeStatus 恢复技师状态前检查其他订单。</p>
+    </div>
+    <div class="feature-card">
+      <h3><span class="tag tag-new">新增</span>排钟轮转</h3>
+      <p>完整的轮转系统：rotation_order、rotation_log、自动分配、顺序轮排。</p>
+    </div>
+    <div class="feature-card">
+      <h3><span class="tag tag-new">新增</span>多顾客房间</h3>
+      <p>大厅/包间/VIP 按容量支持多位顾客，各自扫码查看自己的订单。</p>
+    </div>
+    <div class="feature-card">
+      <h3><span class="tag tag-opt">优化</span>限流分桶</h3>
+      <p>从全局 IP 限流改为按身份分桶，顾客互不影响。</p>
+    </div>
+    <div class="feature-card">
+      <h3><span class="tag tag-opt">优化</span>客服派单台</h3>
+      <p>房间/技师按钮改为只选择，需"确认派单"按钮，防止误触。</p>
+    </div>
+    <div class="feature-card">
+      <h3><span class="tag tag-opt">优化</span>移动端体验</h3>
+      <p>触摸目标 ≥44px、安全区适配、iOS 输入框缩放修复。</p>
+    </div>
+  </div>
+</div>
+
+<div class="footer">
+  <p>羽AI 足浴店管理系统 · 本地部署 · 数据主权归门店所有</p>
+  <p style="margin-top:8px;">© 2026 羽AI · 单机运行 · 无需互联网</p>
+</div>
+
+</div>
+</body>
+</html>
