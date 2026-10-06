@@ -9,6 +9,7 @@
 
 import { extractToken } from '../routes/auth.js'
 import { AuthError, PermissionError } from '../lib/errors.js'
+import { verifyGuestToken } from './guest-token.js'
 
 const PUBLIC_PATHS = [
   '/api/health',
@@ -33,10 +34,22 @@ export async function registerAuthHook(fastify) {
   fastify.addHook('onRequest', async (req, reply) => {
     if (!req.url.startsWith('/api/')) return
     const path = req.url.split('?')[0]
-    if (isPublic(path)) return
 
-    // GET /api/reviews 公开（匿名顾客查看评价墙）
-    if (path.startsWith('/api/reviews') && req.method === 'GET') return
+    // 公开路径：不要求登录，但仍尽力识别「顾客身份」以便限流分桶。
+    // 顾客端请求带 ?t=<guest_token>，解出 ticket_id 后挂到 req，
+    // 这样限流按「单」计额度，而不是让全店顾客共用一个 IP 桶。
+    if (isPublic(path) || (path.startsWith('/api/reviews') && req.method === 'GET')) {
+      try {
+        const t = req.query?.t
+        if (t && typeof t === 'string') {
+          // onRequest 阶段 req.params 尚未解析，从 URL 路径取 ticket_id
+          const m = path.match(/^\/api\/guest\/tickets\/([^/]+)$/)
+          const claim = verifyGuestToken(t, m ? m[1] : undefined)
+          if (claim) req.guestTicketId = claim.ticketId
+        }
+      } catch { /* 识别失败不阻断公开访问，限流会回落 IP 桶 */ }
+      return
+    }
 
     try {
       const payload = extractToken(req)

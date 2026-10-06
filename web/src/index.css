@@ -62,6 +62,47 @@
     appearance: none;
   }
   /* 跳过导航链接样式见文件顶部 .skip-navigation */
+
+  /* ─── 移动端基础修复 ─────────────────────────────
+     顾客扫码端在手机浏览器打开，以下问题会直接影响可用性：
+     1. iOS Safari 对 font-size < 16px 的输入框会自动放大页面，无法还原
+     2. 过度滚动导致整页橡皮筋（弹窗内滚动时尤其明显）
+     3. 长按出现文字选择/系统菜单，触屏上像卡住 */
+  @supports (-webkit-touch-callout: none) {
+    input, textarea, select {
+      font-size: 16px;
+    }
+  }
+  /* 输入类控件统一触屏行为 */
+  input, textarea, select, button {
+    touch-action: manipulation;   /* 去掉 300ms 双击缩放延迟 */
+  }
+  /* 触屏设备禁用长按选择（仅交互控件，正文仍可选中复制） */
+  @media (hover: none) and (pointer: coarse) {
+    button, label, .no-select {
+      -webkit-touch-callout: none;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    /* 触屏上 hover 状态会「粘住」，取消非必要的 hover 位移 */
+    .glass-card:hover {
+      transform: none;
+    }
+  }
+  /* 弹窗内滚动不带动外层页面 */
+  .overscroll-contain {
+    overscroll-behavior: contain;
+  }
+}
+
+/* ─── 底部弹窗滑入（移动端派单弹窗）───────────────
+   从底部滑出，符合移动端「抽屉」心智；桌面端居中显示时不明显。 */
+@keyframes slideUp {
+  from { transform: translateY(16px); opacity: 0; }
+  to   { transform: none; opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [class*="slideUp"] { animation: none !important; }
 }
 
 /* ─── 路由切换进场动效 ─────────────────────────────
@@ -317,6 +358,21 @@ main.overflow-y-auto > * {
   /* 移动端安全区域 */
   .safe-area-pb {
     padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .safe-area-pt {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+  /* 左右安全区（横屏刘海/圆角屏） */
+  .safe-area-x {
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
+  }
+  /* 完整安全区（顾客端全屏页面用） */
+  .safe-area-all {
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    padding-left: env(safe-area-inset-left, 0px);
+    padding-right: env(safe-area-inset-right, 0px);
   }
 
   /* 100dvh 工具类（动态视口高度，兼容移动端浏览器UI） */

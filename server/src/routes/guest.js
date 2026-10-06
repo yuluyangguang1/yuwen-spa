@@ -6,7 +6,8 @@
 import { nanoid } from 'nanoid'
 import { NotFoundError, ValidationError, ConflictError, BusinessError } from '../lib/errors.js'
 import { notifyTicketCreated } from '../notify/index.js'
-import { checkRateLimit } from '../auth/ratelimit.js'
+import { checkRateLimit, clientKey } from '../auth/ratelimit.js'
+import { createGuestToken, verifyGuestToken, sanitizeGuestTicket } from '../auth/guest-token.js'
 
 // 过夜睡眠服务附加费（与前端 GuestView 常量保持一致）
 const OVERNIGHT_FEE_CENTS = 3000
@@ -79,7 +80,7 @@ export async function registerGuestRoutes(fastify) {
     try {
       const shop = defaultShop()
       if (!shop) return null
-      return { id: shop.id, name: shop.name, address: shop.address }
+      return { id: shop.id, name: shop.name, address: shop.address, logo: shop.logo || null, short_name: shop.short_name || null }
     } catch (e) {
       req.log.error(e)
       return reply.code(500).send({ error: '服务器内部错误' })
@@ -118,10 +119,78 @@ export async function registerGuestRoutes(fastify) {
     }
   })
 
+  // ── 单条钟单查询（顾客凭 token 找回自己的单）──
+  // 场景：顾客进店扫码下单时还没有房间号，刷新页面后需要找回自己的单。
+  // 鉴权：下单时签发的 token（HMAC 签名，绑定 ticket_id + shop_id，24h 有效）。
+  // 安全：token 内的 ticket_id 必须与 URL 中的一致（防 IDOR）。
+  fastify.get('/api/guest/tickets/:id', async (req, reply) => {
+    try {
+      const ticketId = req.params.id
+      const token = req.query.t
+      const claim = verifyGuestToken(token, ticketId)
+      if (!claim) {
+        // 凭证无效时按 IP 限流（挡暴力猜 token）；合法请求按单限流
+        const rlBad = checkRateLimit(`guest-bad|${req.ip || 'unknown'}`, { maxAttempts: 30, windowMs: 10 * 60 * 1000 })
+        if (!rlBad.ok) {
+          return reply.code(429).send({ error: `请求过于频繁，请 ${rlBad.retryAfter}s 后再试`, code: 'RATE_LIMITED' })
+        }
+        return reply.code(403).send({ error: '凭证无效或已过期，请重新扫码', code: 'INVALID_TOKEN' })
+      }
+
+      // 限流：按「单」而非「IP」。
+      // 店内所有顾客共用同一出口 IP，按 IP 限流会让一个人的轮询挤掉所有人。
+      // 每张单独立额度（15 秒轮询 ≈ 4 次/分钟，200 次/10分钟余量充足）。
+      req.guestTicketId = claim.ticketId
+      const rl = checkRateLimit(clientKey(req, 'guest-ticket-get'), { maxAttempts: 200, windowMs: 10 * 60 * 1000 })
+      if (!rl.ok) {
+        return reply.code(429).send({ error: `查询过于频繁，请 ${rl.retryAfter}s 后再试`, code: 'RATE_LIMITED' })
+      }
+
+      const row = db.prepare(`
+        SELECT t.id, t.room_id, t.status, t.fulfillment, t.service_id, t.technician_id,
+          t.price_cents, t.started_at, t.completed_at, t.paid_at, t.overnight, t.created_at,
+          s.name AS service_name, s.duration AS service_duration,
+          tech.name AS technician_name, tech.number AS technician_number, tech.level AS technician_level,
+          r.number AS room_number, r.type AS room_type,
+          CASE WHEN EXISTS(SELECT 1 FROM reviews rv WHERE rv.ticket_id = t.id) THEN 1 ELSE 0 END AS reviewed
+        FROM tickets t
+        LEFT JOIN services s ON t.service_id=s.id
+        LEFT JOIN technicians tech ON t.technician_id=tech.id
+        LEFT JOIN rooms r ON t.room_id=r.id
+        WHERE t.id=? AND t.shop_id=?
+      `).get(ticketId, claim.shopId)
+
+      if (!row) throw new NotFoundError('订单不存在')
+
+      // 该房间未收款点单合计（顾客看自己消费了多少钱）
+      let orders_cents = 0
+      if (row.room_id) {
+        const o = db.prepare(`
+          SELECT COALESCE(SUM(total_cents),0) AS c FROM product_orders
+          WHERE room_id=? AND paid_at IS NULL AND status != 'canceled' AND created_at >= ?
+        `).get(row.room_id, startOfDay(row.created_at))
+        orders_cents = o?.c || 0
+      }
+
+      return {
+        ...sanitizeGuestTicket(row),
+        orders_cents,
+        total_cents: row.price_cents + orders_cents,
+        token_expires_hint: '24 小时内有效',
+      }
+    } catch (e) {
+      if (e.code && e.statusCode) return reply.code(e.statusCode).send({ error: e.message, code: e.code })
+      req.log.error(e)
+      return reply.code(500).send({ error: '服务器内部错误' })
+    }
+  })
+
   // ── 顾客自助下单（自提/扫码开钟）────────
   fastify.post('/api/guest/tickets', async (req, reply) => {
     try {
-      const rl = checkRateLimit(`guest-ticket|${req.ip || 'unknown'}`, { maxAttempts: 20, windowMs: 10 * 60 * 1000 })
+      // 限流：店内多人共用出口 IP，20 次/10 分钟会让「一桌人各自下单」互相挤占。
+      // 放宽到 60 次（仍足以挡住脚本刷单）。
+      const rl = checkRateLimit(`guest-ticket|${req.ip || 'unknown'}`, { maxAttempts: 60, windowMs: 10 * 60 * 1000 })
       if (!rl.ok) {
         return reply.code(429).send({ error: `下单过于频繁，请 ${rl.retryAfter}s 后再试`, code: 'RATE_LIMITED' })
       }
@@ -185,7 +254,11 @@ export async function registerGuestRoutes(fastify) {
         ? db.prepare(`SELECT webhook_url FROM technicians WHERE id=?`).get(technician_id)
         : null
       notifyTicketCreated(ticket, tech?.webhook_url).catch(() => {})
-      return ticket
+      // 返回顾客访问凭证：顾客端持久化后，刷新页面可凭此找回自己的单
+      return {
+        ...sanitizeGuestTicket(ticket),
+        guest_token: createGuestToken(id, shop.id, now),
+      }
     } catch (e) {
       if (e.code && e.statusCode) return reply.code(e.statusCode).send({ error: e.message, code: e.code })
       req.log.error(e)

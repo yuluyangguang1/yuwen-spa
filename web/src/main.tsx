@@ -19,6 +19,7 @@ import { warmupAudio, notifyNewTicket, notifyEndWarn, notifyEnd } from './lib/no
 import { useAuth } from './lib/auth'
 import { toast } from './lib/toast'
 import { ToastHost } from './components/ToastHost'
+import { useBrowserBranding } from './components/BrandLogo'
 import { useGlobalHotkeys } from './lib/hotkeys'
 import { initWebVitals } from './lib/vitals'
 import './lib/theme'
@@ -102,6 +103,8 @@ function On401Listener() {
 
   React.useEffect(() => {
     const handler = () => {
+      // 公开页面（顾客扫码端）不跳登录页
+      if (/^\/guest(\/|$)/.test(location.pathname)) return
       const redirect = sessionStorage.getItem('yuwen_redirect') || '/login'
       navigate(redirect, { replace: true })
     }
@@ -118,6 +121,8 @@ function SessionRestore() {
   const navigate = useNavigate()
 
   React.useEffect(() => {
+    // 公开页面（顾客扫码端）不参与登录重定向
+    if (/^\/guest(\/|$)/.test(location.pathname)) return
     const redirect = sessionStorage.getItem('yuwen_redirect')
     if (redirect) {
       sessionStorage.removeItem('yuwen_redirect')
@@ -243,6 +248,7 @@ function GlobalRealtimeListener() {
 
 function GlobalChrome() {
   useGlobalHotkeys()
+  useBrowserBranding()   // 标签页标题 + favicon 跟随门店名称/标识
   return <ToastHost />
 }
 

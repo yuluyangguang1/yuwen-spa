@@ -1,14 +1,44 @@
 import { useEffect, useRef, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { get, getFull, post, put, del } from '@/lib/api'
 import { formatMoney } from '@/lib/utils'
-import { Bell, Send, CheckCircle, XCircle, History, ScrollText, Timer, SunMoon, Plus, Edit2, Trash2, X, Download, RotateCcw, DatabaseBackup } from 'lucide-react'
+import { Bell, Send, CheckCircle, XCircle, History, Timer, SunMoon, Plus, Edit2, Trash2, X, Download, RotateCcw, DatabaseBackup, Store, Cpu, Link2, Palette, Coins, ShieldCheck } from 'lucide-react'
 import { Field } from '@/components/Field'
 import { SearchInput } from '@/components/SearchInput'
 import { DarkModeToggle } from '@/components/DarkModeToggle'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { toast } from '@/lib/toast'
 import { useI18n } from '@/lib/i18n'
+
+// ── 二级菜单分区 ────────────────────────────────
+type SectionKey =
+  | 'appearance' | 'shop' | 'brand'
+  | 'notify' | 'remind' | 'notifyHistory'
+  | 'topup'
+  | 'backup' | 'audit'
+  | 'system' | 'entries'
+
+const SECTIONS: { key: SectionKey; label: string; icon: any; group: string }[] = [
+  { key: 'appearance',    label: '外观',         icon: Palette,        group: '基础' },
+  { key: 'shop',          label: '门店信息',      icon: Store,          group: '基础' },
+  { key: 'brand',         label: '品牌标识',      icon: SunMoon,        group: '基础' },
+
+  { key: 'notify',        label: '企业微信通知',   icon: Bell,           group: '通知提醒' },
+  { key: 'remind',        label: '完钟喇叭提醒',   icon: Timer,          group: '通知提醒' },
+  { key: 'notifyHistory', label: '通知历史',      icon: History,        group: '通知提醒' },
+
+  { key: 'topup',         label: '充值提成档位',   icon: Coins,          group: '运营规则' },
+
+  { key: 'backup',        label: '数据备份',      icon: DatabaseBackup, group: '数据与安全' },
+  { key: 'audit',         label: '审计日志',      icon: ShieldCheck,    group: '数据与安全' },
+
+  { key: 'system',        label: '系统信息',      icon: Cpu,            group: '系统' },
+  { key: 'entries',       label: '各端入口',      icon: Link2,          group: '系统' },
+]
+
+// 按 group 保序分组，供侧栏渲染
+const SECTION_GROUPS = [...new Set(SECTIONS.map(s => s.group))]
 
 export default function AdminSettings() {
   const { data: system } = useQuery({
@@ -17,111 +47,172 @@ export default function AdminSettings() {
   })
   const { locale, setLocale } = useI18n()
 
+  // 分区状态写入 URL（?s=shop），刷新/回退保持，可分享直达
+  const [params, setParams] = useSearchParams()
+  const raw = params.get('s') as SectionKey | null
+  const active: SectionKey = SECTIONS.some(s => s.key === raw) ? raw! : 'appearance'
+  const setActive = (key: SectionKey) => {
+    const next = new URLSearchParams(params)
+    next.set('s', key)
+    setParams(next, { replace: true })
+  }
+  const activeMeta = SECTIONS.find(s => s.key === active)!
+
   return (
-    <div className="p-4 md:p-6 space-y-6">
-      <h1 className="text-lg font-medium">系统设置</h1>
+    <div className="p-4 md:p-6">
+      <h1 className="text-lg font-medium mb-4">系统设置</h1>
 
-      {/* 外观 */}
-      <section className="glass-card p-5 space-y-3">
-        <h2 className="text-sm text-white/50 flex items-center gap-2">
-          <SunMoon size={14} /> 外观
-        </h2>
-        <div className="flex items-center justify-between">
-          <div>
-            <div className="text-sm text-white/60">深色模式</div>
-            <div className="text-xs text-white/30 mt-0.5">跟随本设备偏好，刷新后保持</div>
-          </div>
-          <DarkModeToggle />
+      <div className="flex flex-col md:flex-row gap-5">
+        {/* 二级菜单（移动端横向滚动） */}
+        <nav
+          aria-label="设置分区"
+          className="md:w-52 shrink-0 md:sticky md:top-0 md:self-start
+                     flex md:flex-col gap-1 overflow-x-auto md:overflow-visible
+                     -mx-4 px-4 md:mx-0 md:px-0 pb-2 md:pb-0"
+        >
+          {SECTION_GROUPS.map(group => (
+            <div key={group} className="md:mb-2 flex md:flex-col gap-1 shrink-0">
+              <span className="hidden md:block text-[10px] text-white/35 uppercase px-3 pt-2 pb-1 shrink-0">
+                {group}
+              </span>
+              {SECTIONS.filter(s => s.group === group).map(s => {
+                const isActive = s.key === active
+                return (
+                  <button
+                    key={s.key}
+                    onClick={() => setActive(s.key)}
+                    aria-current={isActive ? 'true' : undefined}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm whitespace-nowrap transition-colors shrink-0 ${
+                      isActive
+                        ? 'bg-tan/10 text-tan'
+                        : 'text-white/60 hover:text-white hover:bg-white/5'
+                    }`}
+                  >
+                    <s.icon size={15} className="shrink-0" />
+                    {s.label}
+                  </button>
+                )
+              })}
+            </div>
+          ))}
+        </nav>
+
+        {/* 内容区 */}
+        <div className="flex-1 min-w-0 max-w-3xl space-y-4">
+          <h2 className="text-base font-medium text-white/80 flex items-center gap-2">
+            <activeMeta.icon size={16} className="text-tan" />
+            {activeMeta.label}
+          </h2>
+
+          {active === 'appearance' && <AppearanceConfig locale={locale} setLocale={setLocale} />}
+          {active === 'shop' && <ShopConfig />}
+          {active === 'brand' && <BrandPanel />}
+          {active === 'notify' && <NotifyConfig />}
+          {active === 'remind' && <EndRemindConfig />}
+          {active === 'notifyHistory' && <NotifyHistory />}
+          {active === 'topup' && <TopupCommissionRules />}
+          {active === 'backup' && <BackupPanel />}
+          {active === 'audit' && <AuditLogs />}
+          {active === 'system' && <SystemInfo system={system} />}
+          {active === 'entries' && <EntriesPanel />}
         </div>
-        <div className="flex items-center justify-between pt-2 border-t border-white/5">
-          <div>
-            <div className="text-sm text-white/60">界面语言</div>
-            <div className="text-xs text-white/30 mt-0.5">Language / 语言</div>
-          </div>
-          <div className="flex gap-1">
-            {(['zh', 'en'] as const).map((l) => (
-              <button
-                key={l}
-                onClick={() => setLocale(l)}
-                className={`px-3 py-1 rounded-lg text-xs transition-colors ${
-                  locale === l
-                    ? 'bg-tan text-white'
-                    : 'bg-white/5 text-white/40 hover:text-white/70'
-                }`}
-              >
-                {l === 'zh' ? '中文' : 'EN'}
-              </button>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* 企业微信通知 */}
-      <NotifyConfig />
-      <EndRemindConfig />
-      <NotifyHistory />
-      <TopupCommissionRules />
-      <AuditLogs />
-
-      {/* 门店信息（名称改后全端左上角/登录页/顾客端/收据同步显示） */}
-      <ShopConfig />
-
-      {/* 系统信息 */}
-      <section className="glass-card p-5 space-y-3">
-        <h2 className="text-sm text-white/50">系统信息</h2>
-        <div className="grid gap-2 text-xs">
-          <div className="flex justify-between">
-            <span className="text-white/40">主机名</span>
-            <span>{system?.hostname}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-white/40">平台</span>
-            <span>{system?.platform} / {system?.arch}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-white/40">Node.js</span>
-            <span>{system?.nodeVersion}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-white/40">运行时间</span>
-            <span>{system?.uptime ? `${Math.floor(system.uptime / 3600)}小时` : '-'}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-white/40">内存</span>
-            <span>{system?.memory ? `${Math.round(system.memory.free / 1024 / 1024)}MB 可用` : '-'}</span>
-          </div>
-        </div>
-      </section>
-
-      {/* 数据备份 */}
-      <BackupPanel />
-
-      {/* 访问入口 */}
-      <section className="glass-card p-5 space-y-3">
-        <h2 className="text-sm text-white/50">各端入口</h2>
-        <div className="grid gap-2 text-sm">
-          <Entry label="收银端" path="/pos" desc="前台开钟、结账" />
-          <Entry label="技师端" path="/tech" desc="技师查看排钟、提成" />
-          <Entry label="顾客端" path="/guest/room/[roomId]" desc="扫房间二维码，选技师下单" />
-          <Entry label="管理后台" path="/admin" desc="全部管理功能" />
-        </div>
-      </section>
-
-      {/* 品牌标识 */}
-      <section className="glass-card p-5 space-y-4">
-        <h2 className="text-sm text-white/50">品牌标识</h2>
-        <div className="flex items-center gap-6">
-          <div className="flex flex-col items-center gap-2">
-            <img src="/yu-logo.svg" alt="羽AI" className="w-16 h-16" />
-            <span className="text-xs text-white/40">羽AI</span>
-          </div>
-          <div className="flex flex-col items-center gap-2">
-            <img src="/yu-brand.png" alt="足韵 · 涌泉印" className="w-16 h-16 rounded-full" />
-            <span className="text-xs text-white/40">足韵 · 涌泉印</span>
-          </div>
-        </div>
-      </section>
+      </div>
     </div>
+  )
+}
+
+// ── 外观 ────────────────────────────────────────
+function AppearanceConfig({ locale, setLocale }: { locale: string; setLocale: (l: any) => void }) {
+  return (
+    <section className="glass-card p-5 space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-sm text-white/60">深色模式</div>
+          <div className="text-xs text-white/30 mt-0.5">跟随本设备偏好，刷新后保持</div>
+        </div>
+        <DarkModeToggle />
+      </div>
+      <div className="flex items-center justify-between pt-2 border-t border-white/5">
+        <div>
+          <div className="text-sm text-white/60">界面语言</div>
+          <div className="text-xs text-white/30 mt-0.5">Language / 语言</div>
+        </div>
+        <div className="flex gap-1">
+          {(['zh', 'en'] as const).map((l) => (
+            <button
+              key={l}
+              onClick={() => setLocale(l)}
+              className={`px-3 py-1 rounded-lg text-xs transition-colors ${
+                locale === l ? 'bg-tan text-white' : 'bg-white/5 text-white/40 hover:text-white/70'
+              }`}
+            >
+              {l === 'zh' ? '中文' : 'EN'}
+            </button>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ── 品牌标识 ────────────────────────────────────
+function BrandPanel() {
+  return (
+    <section className="glass-card p-5 space-y-4">
+      <p className="text-xs text-white/30">
+        浏览器标签页图标与各端左上角标识均使用下方图形；可在「门店信息」上传自定义标识替换。
+      </p>
+      <div className="flex items-center gap-8">
+        <div className="flex flex-col items-center gap-2">
+          {/* 深浅适配：浅色底用深色字标，深色底用浅色字标 */}
+          <img src="/yu-logo.png" alt="羽AI" className="w-20 h-20 object-contain dark:hidden" />
+          <img src="/yu-logo-light.png" alt="羽AI" className="w-20 h-20 object-contain hidden dark:block" />
+          <span className="text-xs text-white/40">羽AI</span>
+        </div>
+        <div className="flex flex-col items-center gap-2">
+          {/* 浏览器标签页图标 */}
+          <img src="/favicon-32.png" alt="标签页图标" className="w-10 h-10 object-contain" />
+          <span className="text-xs text-white/40">标签页图标</span>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ── 系统信息 ────────────────────────────────────
+function SystemInfo({ system }: { system: any }) {
+  const rows: [string, string][] = [
+    ['主机名', system?.hostname ?? '-'],
+    ['平台', `${system?.platform ?? '-'} / ${system?.arch ?? '-'}`],
+    ['Node.js', system?.nodeVersion ?? '-'],
+    ['运行时间', system?.uptime ? `${Math.floor(system.uptime / 3600)}小时` : '-'],
+    ['内存', system?.memory ? `${Math.round(system.memory.free / 1024 / 1024)}MB 可用` : '-'],
+  ]
+  return (
+    <section className="glass-card p-5 space-y-3">
+      <div className="grid gap-2 text-xs">
+        {rows.map(([k, v]) => (
+          <div key={k} className="flex justify-between gap-4">
+            <span className="text-white/40 shrink-0">{k}</span>
+            <span className="text-right break-all">{v}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+// ── 各端入口 ────────────────────────────────────
+function EntriesPanel() {
+  return (
+    <section className="glass-card p-5 space-y-3">
+      <div className="grid gap-2 text-sm">
+        <Entry label="收银端" path="/pos" desc="前台开钟、结账" />
+        <Entry label="技师端" path="/tech" desc="技师查看排钟、提成" />
+        <Entry label="顾客端" path="/guest/room/[roomId]" desc="扫房间二维码，选技师下单" />
+        <Entry label="管理后台" path="/admin" desc="全部管理功能" />
+      </div>
+    </section>
   )
 }
 
@@ -162,17 +253,79 @@ function ShopConfig() {
     onError: (e: any) => toast.error(e?.message || '保存失败'),
   })
 
+  // ── 自定义标识上传（浏览器图标 / 各端品牌区）──
+  const fileRef = useRef<HTMLInputElement>(null)
+  const uploadMut = useMutation({
+    mutationFn: (image: string) => post(`/api/shops/${shop!.id}/logo`, { image }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['shop'] })
+      qc.invalidateQueries({ queryKey: ['guest-shop'] })
+      toast.success('门店标识已更新')
+    },
+    onError: (e: any) => toast.error(e?.message || '上传失败'),
+  })
+
+  const pickLogo = (file: File) => {
+    if (!/^image\/(png|jpeg)$/.test(file.type)) {
+      toast.error('仅支持 PNG / JPEG 图片')
+      return
+    }
+    if (file.size > 1_000_000) {
+      toast.error('图片过大（限 1MB），请压缩后重试')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => uploadMut.mutate(String(reader.result))
+    reader.onerror = () => toast.error('读取图片失败')
+    reader.readAsDataURL(file)
+  }
+
   return (
     <section className="glass-card p-5 space-y-3">
-      <h2 className="text-sm text-white/50">门店信息</h2>
       <p className="text-xs text-white/30">
-        门店名称会显示在各端左上角、登录页、顾客端、收据与房间二维码标签。
+        门店名称会显示在各端左上角、登录页、顾客端、收据与房间二维码标签，同时作为浏览器标签页标题。
       </p>
       <div className="grid gap-3 sm:grid-cols-3">
         <Field label="门店名称" value={name} onChange={setName} placeholder="如：足韵 · 涌泉印" required />
         <Field label="地址" value={address} onChange={setAddress} />
         <Field label="电话" value={phone} onChange={setPhone} />
       </div>
+
+      {/* 自定义标识 */}
+      <div className="flex items-center gap-4 pt-2 border-t border-white/5">
+        <div className="w-12 h-12 rounded-lg bg-white/5 flex items-center justify-center shrink-0 overflow-hidden">
+          {shop?.logo
+            ? <img src={shop.logo} alt="门店标识" className="w-full h-full object-contain" />
+            : <img src="/yu-logo.png" alt="默认标识" className="w-full h-full object-contain opacity-40 dark:hidden" />}
+          {!shop?.logo && <img src="/yu-logo-light.png" alt="默认标识" className="w-full h-full object-contain opacity-40 hidden dark:block" />}
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="text-sm text-white/60">门店标识</div>
+          <div className="text-xs text-white/30 mt-0.5">
+            用作浏览器图标与各端左上角标识。建议正方形 PNG（带透明底），≤1MB。
+          </div>
+        </div>
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/png,image/jpeg"
+          className="hidden"
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (f) pickLogo(f)
+            e.target.value = ''
+          }}
+        />
+        <button
+          type="button"
+          onClick={() => fileRef.current?.click()}
+          disabled={!shop || uploadMut.isPending}
+          className="shrink-0 px-3 py-1.5 rounded-lg text-xs bg-white/5 text-white/60 hover:text-white/90 disabled:opacity-40"
+        >
+          {uploadMut.isPending ? '上传中...' : '更换标识'}
+        </button>
+      </div>
+
       <div className="flex items-center gap-3">
         <button
           onClick={() => saveMut.mutate()}
@@ -219,9 +372,6 @@ function NotifyConfig() {
 
   return (
     <section className="glass-card p-5 space-y-4">
-      <h2 className="text-sm text-white/50 flex items-center gap-2">
-        <Bell size={14} /> 企业微信通知
-      </h2>
       <p className="text-xs text-white/30">
         配置企业微信群机器人 webhook，开钟和结账时自动推送通知到群里。
       </p>
@@ -319,9 +469,6 @@ function EndRemindConfig() {
 
   return (
     <section className="glass-card p-5 space-y-4">
-      <h2 className="text-sm text-white/50 flex items-center gap-2">
-        <Timer size={14} /> 完钟喇叭提醒
-      </h2>
       <p className="text-xs text-white/30">
         快完钟/到点时，收银台、技师端、顾客页外放提示音与语音；到点固定提醒。逗号分隔提前分钟，如 <code className="text-tan/70">5</code> 或 <code className="text-tan/70">10,5</code>。
       </p>
@@ -401,7 +548,6 @@ function NotifyHistory() {
   return (
     <section className="glass-card p-5 space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm text-white/50 flex items-center gap-2"><History size={14} /> 通知历史</h2>
         <span className="text-xs text-white/30">共 {total} 条</span>
       </div>
       <div className="overflow-x-auto">
@@ -488,10 +634,7 @@ function TopupCommissionRules() {
 
   return (
     <section className="glass-card p-5 space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm text-white/50 flex items-center gap-1.5">
-          <ScrollText size={14} /> 充值提成档位
-        </h2>
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <button onClick={() => setShowForm(true)}
           className="flex items-center gap-1 bg-tan text-white px-3 py-1 rounded-lg text-xs active:scale-[0.97]">
           <Plus size={12} /> 新增档位
@@ -671,10 +814,7 @@ function BackupPanel() {
 
   return (
     <section className="glass-card p-5 space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm text-white/50 flex items-center gap-1.5">
-          <DatabaseBackup size={14} /> 数据备份
-        </h2>
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <button onClick={() => backupMut.mutate()} disabled={backupMut.isPending}
           className="flex items-center gap-1 bg-tan text-white px-3 py-1 rounded-lg text-xs active:scale-[0.97] disabled:opacity-50">
           <Download size={12} /> {backupMut.isPending ? '备份中...' : '立即备份'}
@@ -763,8 +903,7 @@ function AuditLogs() {
 
   return (
     <section className="glass-card p-5 space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm text-white/50 flex items-center gap-2"><ScrollText size={14} /> 审计日志</h2>
+      <div className="flex flex-wrap items-center justify-end gap-2">
         <div className="flex items-center gap-2">
           <SearchInput placeholder="过滤 action（完整匹配）…"
             label="按 action 过滤审计日志"

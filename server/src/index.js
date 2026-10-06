@@ -13,7 +13,6 @@ import './load-env.js'
 
 import Fastify from 'fastify'
 import fastifyCors from '@fastify/cors'
-import fastifyStatic from '@fastify/static'
 import fastifyWebsocket from '@fastify/websocket'
 import fastifyCompress from '@fastify/compress'
 import path from 'node:path'
@@ -29,7 +28,6 @@ import { LRUCache } from './lib/cache.js'
 import { registerScheduler } from './scheduler.js'
 import { registerEndWatch } from './endwatch.js'
 import { initBackup } from './backup/index.js'
-import { checkRateLimit } from './auth/ratelimit.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(__dirname, '..')
@@ -72,24 +70,10 @@ fastify.addHook('onRequest', async (req, reply) => {
   ].join('; '))
 })
 
-// ─── 全局限流（/api 写读兜底；敏感端点另有更严限制）───────
-// 局域网 POS 正常操作量远低于此阈值；挡住脚本刷接口与爬虫。
+// ─── 全局限流已移至 routes/index.js（必须在认证 hook 之后注册）───
+// 原因：限流要按「身份」分桶（员工/顾客/匿名），而身份由认证 hook 解析。
+// 若在认证前注册，req.user 恒为空，所有人会落进同一个 IP 桶 —— 正是要避免的。
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
-fastify.addHook('onRequest', async (req, reply) => {
-  if (!req.url.startsWith('/api/')) return
-  if (req.url.startsWith('/api/health') || req.url.startsWith('/api/realtime')) return
-  const rl = checkRateLimit(`global:${req.ip}`, {
-    maxAttempts: 600,
-    windowMs: 60 * 1000,
-  })
-  if (!rl.ok) {
-    reply.header('Retry-After', String(rl.retryAfter))
-    return reply.code(429).send({
-      error: `请求过于频繁，请 ${rl.retryAfter} 秒后重试`,
-      code: 'RATE_LIMITED',
-    })
-  }
-})
 
 // ─── CSRF/跨站 Origin 校验（写方法）────────────────────────
 // 认证走 Authorization: Bearer（localStorage），浏览器不会跨站自动带；
@@ -129,7 +113,7 @@ fastify.addHook('onRequest', async (req, reply) => {
 // ─── 1. 初始化数据库 ──────────────────────────────────────────
 // 启动时如果库不存在就创建 + 跑 migrations + seed 默认数据。
 // 同步 API（better-sqlite3 是同步的）所以可以放在 await 上面。
-const db = initDatabase(path.join(ROOT, 'db'))
+const db = initDatabase(process.env.DB_DIR || path.join(ROOT, 'db'))
 fastify.decorate('db', db)
 fastify.decorate('cache', new LRUCache(1000, 5 * 60 * 1000))
 
@@ -275,6 +259,22 @@ if (fs.existsSync(publicDir)) {
   // 技师照片（管理后台上传）
   fastify.get('/avatars/*', async (req, reply) =>
     sendPublicFile(req, reply, path.join('avatars', req.params['*']), 'public, max-age=3600'))
+  // 门店自定义标识（浏览器图标 / PWA / 品牌区）
+  fastify.get('/brand/*', async (req, reply) =>
+    sendPublicFile(req, reply, path.join('brand', req.params['*']), 'public, max-age=3600'))
+  // 根级品牌资源（favicon / 内置字标）：白名单，避免开放任意根路径读取
+  const ROOT_ASSETS = new Set([
+    'favicon.ico', 'favicon-32.png', 'apple-touch-icon.png',
+    'yu-logo.png', 'yu-logo-light.png', 'robots.txt',
+  ])
+  fastify.get('/:asset', async (req, reply) => {
+    const asset = req.params.asset
+    if (!ROOT_ASSETS.has(asset)) {
+      // 非白名单：交给 SPA fallback（保持原有行为）
+      return reply.callNotFound()
+    }
+    return sendPublicFile(req, reply, asset, 'public, max-age=3600')
+  })
   // index.html 不缓存
   fastify.get('/', async (req, reply) =>
     sendPublicFile(req, reply, 'index.html', 'no-cache, no-store, must-revalidate'))
@@ -283,7 +283,29 @@ if (fs.existsSync(publicDir)) {
     sendPublicFile(req, reply, path.join('icons', req.params['*']), 'no-cache'))
   fastify.get('/manifest.json', async (req, reply) => {
     reply.header('Cache-Control', 'no-cache')
-    return reply.type('application/json').send(fs.readFileSync(path.join(publicDir, 'manifest.json')))
+    // 动态生成：PWA 名称与图标跟随门店设置（改名/换标识后各端自动更新）
+    try {
+      const shop = fastify.db.prepare(`SELECT name, short_name, logo FROM shops ORDER BY created_at LIMIT 1`).get()
+      const name = shop?.name || '足韵'
+      const shortName = shop?.short_name || name
+      const logo = shop?.logo
+      const icons = logo
+        ? [{ src: logo, sizes: 'any', type: logo.includes('.png') ? 'image/png' : 'image/jpeg', purpose: 'any' }]
+        : [
+            { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+            { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+          ]
+      const base = JSON.parse(fs.readFileSync(path.join(publicDir, 'manifest.json'), 'utf8'))
+      return reply.type('application/json').send({
+        ...base,
+        name,
+        short_name: shortName,
+        description: `${name} — 线下足浴本地部署 SaaS 系统`,
+        icons,
+      })
+    } catch {
+      return reply.type('application/json').send(fs.readFileSync(path.join(publicDir, 'manifest.json')))
+    }
   })
   fastify.get('/sw.js', async (req, reply) => {
     reply.header('Cache-Control', 'no-cache')

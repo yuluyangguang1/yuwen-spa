@@ -1,4 +1,4 @@
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { get, post } from '@/lib/api'
 import { formatMoney, formatElapsed } from '@/lib/utils'
@@ -10,6 +10,7 @@ import { GuestOrderSheet } from '@/components/GuestOrderSheet'
 import { ReviewSheet } from '@/components/ReviewSheet'
 import { BrandTitle } from '@/components/BrandTitle'
 import { notifyEndWarn, notifyEnd, warmupAudio } from '@/lib/notify'
+import { saveGuestSession } from '@/lib/guest-session'
 
 // 过夜睡眠服务附加费（分）— 与后端 guest.js 保持一致
 const OVERNIGHT_FEE_CENTS = 3000
@@ -59,9 +60,25 @@ const IdleTechCard = memo(function IdleTechCard({ tech, onPick }: { tech: any; o
 // 服务完成/结账后 → 可评价（reviewed 标记）
 export default function GuestView() {
   const { roomId } = useParams()
+  const [searchParams] = useSearchParams()
   const [orderOpen, setOrderOpen] = useState(false)
   const [reviewTicket, setReviewTicket] = useState<any>(null)
   const [dismissed, setDismissed] = useState<string[]>([])
+  const [selectedTicketId, setSelectedTicketId] = useState<string | null>(() => {
+    try { return localStorage.getItem('yuwen_guest_selected_ticket') } catch { return null }
+  })
+
+  // 选择持久化：刷新页面后不丢
+  useEffect(() => {
+    try {
+      if (selectedTicketId) localStorage.setItem('yuwen_guest_selected_ticket', selectedTicketId)
+      else localStorage.removeItem('yuwen_guest_selected_ticket')
+    } catch { /* 无痕模式 */ }
+  }, [selectedTicketId])
+
+  // 从 URL 读取 tid 和 t（客服转发的链接，或顾客从大堂码跳转时带上的）
+  const urlTicketId = searchParams.get('tid')
+  const urlToken = searchParams.get('t')
 
   const { data: room, isLoading: roomLoading } = useQuery({
     queryKey: ['guest-room', roomId],
@@ -74,8 +91,14 @@ export default function GuestView() {
     refetchInterval: 10000,
   })
 
-  // 当前房间正在进行的钟
-  const activeTicket = tickets.find((t: any) => t.room_id === roomId && t.status === 'active')
+  // 识别"我的订单"：URL 带 tid+t 时优先用，否则用 selectedTicketId，否则取房间第一个 active
+  const myTicket = urlTicketId && urlToken
+    ? tickets.find((t: any) => t.id === urlTicketId)
+    : null
+  const selectedTicket = selectedTicketId
+    ? tickets.find((t: any) => t.id === selectedTicketId && t.status === 'active')
+    : null
+  const activeTicket = myTicket || selectedTicket || tickets.find((t: any) => t.room_id === roomId && t.status === 'active')
   // 可评价：completed/paid 且有技师、未评价、未点关闭
   const reviewable = tickets.find((t: any) =>
     (t.status === 'completed' || t.status === 'paid') &&
@@ -101,9 +124,47 @@ export default function GuestView() {
     )
   }
 
+  // 房间所有 active 订单
+  const activeTickets = tickets.filter((t: any) => t.room_id === roomId && t.status === 'active')
+  // 如果 URL 指定了订单，用指定的；否则如果只有一个 active，直接用；多个则显示选择
+  // 注意：用户已选择订单时（selectedTicketId 不为空），不再显示选择列表
+  const showTicketPicker = !myTicket && !selectedTicketId && activeTickets.length > 1
+
   // 房间有正在进行或刚下单的服务 → 显示服务进度
   let content: ReactNode
-  if (activeTicket) {
+  if (showTicketPicker) {
+    // 多顾客房间：显示订单选择列表
+    content = (
+      <div className="min-h-[100dvh] max-w-md mx-auto p-4 space-y-4 safe-area-all">
+        <div className="text-center py-3">
+          <BrandTitle size="xl" shimmer publicPage stack />
+        </div>
+        <div className="glass-card p-5 space-y-3">
+          <div className="text-center space-y-1">
+            <div className="text-lg text-tan">{room.number}号{room.type || ''}</div>
+            <div className="text-xs text-white/40">本房间有多位顾客，请选择您的订单</div>
+          </div>
+          <div className="space-y-2 pt-2">
+            {activeTickets.map((t: any) => (
+              <button
+                key={t.id}
+                onClick={() => setSelectedTicketId(t.id)}
+                className="w-full glass-card p-4 text-left active:scale-[0.98] hover:border-tan/20 transition-all"
+              >
+                <div className="flex justify-between items-center">
+                  <div>
+                    <div className="font-medium">{t.technician_name || '技师'}</div>
+                    <div className="text-xs text-white/40">{t.service_name}</div>
+                  </div>
+                  <div className="text-sm text-tan">{formatMoney(t.price_cents)}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    )
+  } else if (activeTicket) {
     content = <GuestActiveView ticket={activeTicket} room={room} />
   } else {
     // 有顾客自助下单待确认（pending）
@@ -199,8 +260,8 @@ export default function GuestView() {
   )
 }
 
-// ─── 空闲状态：选技师 + 选项目 ─────────────────────────────
-function GuestSelectView({ room }: { room: any }) {
+// ─── 选技师 + 选项目（房间可选：有房间=房间码模式，无房间=大堂码模式）──
+export function GuestSelectView({ room, onCreated }: { room?: any; onCreated?: (t: any) => void }) {
   const queryClient = useQueryClient()
   const [step, setStep] = useState<'tech' | 'service' | 'confirm'>('tech')
   const [selectedTech, setSelectedTech] = useState<any>(null)
@@ -245,13 +306,16 @@ function GuestSelectView({ room }: { room: any }) {
       shop_id: shop?.id,
       service_id: selectedService?.id,
       technician_id: selectedTech?.id || undefined,
-      room_id: room.id,
+      room_id: room?.id || undefined,   // 无房间=大堂码模式，待客服分配
       auto_start: false,
       overnight,
     }),
-    onSuccess: () => {
+    onSuccess: (res: any) => {
       queryClient.invalidateQueries({ queryKey: ['guest-tickets'] })
       queryClient.invalidateQueries({ queryKey: ['guest-technicians'] })
+      // 持久化凭证：刷新页面可凭此找回订单
+      if (res?.id && res?.guest_token) saveGuestSession(res.id, res.guest_token)
+      onCreated?.(res)
       setSuccess(true)
     },
     onError: (e: any) => {
@@ -270,7 +334,9 @@ function GuestSelectView({ room }: { room: any }) {
           <div className="text-sm text-white/40">
             {selectedTech ? `${selectedTech.name} 技师即将为您服务` : '技师即将为您服务'}
           </div>
-          <div className="text-xs text-white/20">页面将自动刷新显示服务进度</div>
+          <div className="text-xs text-white/20">
+            {room ? '页面将自动刷新显示服务进度' : '客服将为您安排房间，请稍候'}
+          </div>
         </div>
       </div>
     )
@@ -284,11 +350,13 @@ function GuestSelectView({ room }: { room: any }) {
   ] as const
 
   return (
-    <div className="min-h-[100dvh] max-w-md mx-auto p-4 space-y-4">
-      {/* 品牌头 + 房间信息 */}
+    <div className="min-h-[100dvh] max-w-md mx-auto p-4 space-y-4 safe-area-all">
+      {/* 品牌头 + 房间信息（无房间时显示等待提示） */}
       <div className="text-center py-3">
         <BrandTitle size="xl" shimmer publicPage stack />
-        <p className="text-xs text-white/30 mt-1">{room.number}号{room.type} · 欢迎光临</p>
+        <p className="text-xs text-white/30 mt-1">
+          {room ? `${room.number}号${room.type} · 欢迎光临` : '欢迎光临 · 下单后由客服为您安排房间'}
+        </p>
       </div>
 
       {/* 下单步骤指示（已完成的步骤可点击返回） */}
@@ -303,9 +371,9 @@ function GuestSelectView({ room }: { room: any }) {
                 disabled={!done}
                 onClick={() => { if (done) setStep(s.key) }}
                 aria-current={active ? 'step' : undefined}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs min-h-[32px] transition-colors ${
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-full text-xs min-h-[44px] transition-colors ${
                   active ? 'bg-tan/15 text-tan font-medium'
-                  : done ? 'text-white/60 hover:text-white hover:bg-white/5'
+                  : done ? 'text-white/60 active:text-white active:bg-white/5'
                   : 'text-white/30 cursor-default'
                 }`}
               >
@@ -426,7 +494,7 @@ function GuestSelectView({ room }: { room: any }) {
           <div className="glass-card p-5 space-y-4">
             <div className="flex justify-between items-center">
               <span className="text-white/50">房间</span>
-              <span>{room.number}号 {room.type}</span>
+              <span>{room ? `${room.number}号 ${room.type}` : '由客服安排'}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-white/50">技师</span>
@@ -574,7 +642,7 @@ function GuestActiveView({ ticket, room }: { ticket: any; room: any }) {
   }, [ticket.id, ticket.started_at, ticket.service_duration, ticket.overnight])
 
   return (
-    <div className="min-h-[100dvh] max-w-md mx-auto p-4 space-y-4">
+    <div className="min-h-[100dvh] max-w-md mx-auto p-4 space-y-4 safe-area-all">
       {endToast && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 max-w-[min(92vw,420px)]">
           <div className="rounded-xl border border-tan/40 bg-[#1a1a18]/95 backdrop-blur px-4 py-3 text-sm text-tan">

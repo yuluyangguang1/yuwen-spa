@@ -16,14 +16,14 @@ export default function CsLayout() {
       {/* 顶栏 */}
       <header className="flex items-center justify-between px-4 py-3 border-b border-white/5 bg-[#0e0e0d]/80 backdrop-blur-xl">
         <BrandTitle suffix="客服" />
-        <div className="flex items-center gap-3">
-          <span className="text-xs text-white/50"><Clock /></span>
-          <a href="/pos" className="text-xs text-white/50 hover:text-white/80 transition-colors hidden sm:inline">收银端</a>
+        <div className="flex items-center gap-1 shrink-0">
+          <span className="text-xs text-white/50 px-1 hidden sm:inline"><Clock /></span>
+          <a href="/pos" className="text-xs text-white/50 hover:text-white/80 transition-colors hidden sm:inline px-2">收银端</a>
           <DarkModeToggle />
-          <button onClick={() => setShowPwd(true)} aria-label="修改密码" className="text-white/50 hover:text-tan transition-colors p-2 -m-1 min-h-[44px] min-w-[44px] flex items-center justify-center">
+          <button onClick={() => setShowPwd(true)} aria-label="修改密码" style={{ minWidth: 44, minHeight: 44 }} className="text-white/50 hover:text-tan transition-colors flex items-center justify-center">
             <Key size={16} />
           </button>
-          <button onClick={logout} aria-label={`退出登录 ${user?.display_name ?? ''}`} className="flex items-center gap-1 text-xs text-white/50 hover:text-red-400 transition-colors p-2 -m-1 min-h-[44px]">
+          <button onClick={logout} aria-label={`退出登录 ${user?.display_name ?? ''}`} style={{ minWidth: 44, minHeight: 44 }} className="flex items-center justify-center gap-1 text-xs text-white/50 hover:text-red-400 transition-colors">
             <LogOut size={16} />
             <span className="hidden sm:inline">{user?.display_name}</span>
           </button>

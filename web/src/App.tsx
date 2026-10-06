@@ -48,6 +48,7 @@ const TechHistory = lazyWithRetry(() => import('./pages/tech/TechHistory'))
 
 // 顾客端（扫码）
 const GuestView = lazyWithRetry(() => import('./pages/guest/GuestView'))
+const GuestLobby = lazyWithRetry(() => import('./pages/guest/GuestLobby'))
 
 // 总后台（老板管理）
 const AdminLayout = lazyWithRetry(() => import('./layouts/AdminLayout'))
@@ -132,6 +133,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
 
         {/* 顾客端（无需登录，扫码访问） */}
+        <Route path="/guest" element={<GuestLobby />} />
         <Route path="/guest/room/:roomId" element={<GuestView />} />
 
         {/* 默认跳转到收银端 */}

@@ -14,7 +14,7 @@ export class ApiError extends Error {
   }
 }
 
-export async function api<T = any>(path: string, opts?: RequestInit): Promise<T> {
+export async function api<T = any>(path: string, opts?: RequestInit & { skipAuth?: boolean }): Promise<T> {
   const json = await rawRequest(path, opts)
   // 后端列表接口统一返回 { data, total, page, pageSize }，这里解包 data
   if (json && typeof json === 'object' && !Array.isArray(json) && 'data' in json) {
@@ -28,7 +28,7 @@ export async function getFull<T = any>(path: string): Promise<T> {
   return (await rawRequest(path, {})) as T
 }
 
-async function rawRequest(path: string, opts?: RequestInit): Promise<any> {
+async function rawRequest(path: string, opts?: RequestInit & { skipAuth?: boolean }): Promise<any> {
   const token = localStorage.getItem('yuwen_token')
   const controller = new AbortController()
   const external = opts?.signal
@@ -49,7 +49,9 @@ async function rawRequest(path: string, opts?: RequestInit): Promise<any> {
   if (opts?.body != null && !headers['Content-Type']) {
     headers['Content-Type'] = 'application/json'
   }
-  if (token && !headers['Authorization']) {
+  // 公开端点（/api/guest/*）不带 Authorization，避免残留过期 token 触发 401 跳转
+  const isPublic = path.startsWith('/api/guest/')
+  if (token && !isPublic && !opts?.skipAuth && !headers['Authorization']) {
     headers['Authorization'] = `Bearer ${token}`
   }
 
@@ -61,10 +63,15 @@ async function rawRequest(path: string, opts?: RequestInit): Promise<any> {
     })
 
     if (res.status === 401) {
-      // token 失效：抛错让 mutation 走 onError（避免伪成功），同时 SPA 跳转登录
+      // token 失效：抛错让 mutation 走 onError（避免伪成功）
       localStorage.removeItem('yuwen_token')
-      sessionStorage.setItem('yuwen_redirect', location.pathname + location.search)
-      window.dispatchEvent(new CustomEvent('yuwen:401'))
+      // 公开页面（顾客扫码端）不做全局跳转：顾客没有账号，
+      // 跳到登录页会让他们无法下单。只清掉残留的失效 token 即可。
+      const onPublicPage = /^\/guest(\/|$)/.test(location.pathname)
+      if (!onPublicPage) {
+        sessionStorage.setItem('yuwen_redirect', location.pathname + location.search)
+        window.dispatchEvent(new CustomEvent('yuwen:401'))
+      }
       throw new ApiError('登录已失效，请重新登录', 401)
     }
 
@@ -93,9 +100,9 @@ async function rawRequest(path: string, opts?: RequestInit): Promise<any> {
   }
 }
 
-export const get = <T = any>(path: string) => api<T>(path)
-export const post = <T = any>(path: string, data?: any) =>
-  api<T>(path, { method: 'POST', body: data ? JSON.stringify(data) : undefined })
+export const get = <T = any>(path: string, opts?: RequestInit & { skipAuth?: boolean }) => api<T>(path, opts)
+export const post = <T = any>(path: string, data?: any, opts?: RequestInit & { skipAuth?: boolean }) =>
+  api<T>(path, { method: 'POST', body: data ? JSON.stringify(data) : undefined, ...opts })
 export const put = <T = any>(path: string, data?: any) =>
   api<T>(path, { method: 'PUT', body: JSON.stringify(data) })
 export const del = <T = any>(path: string) =>

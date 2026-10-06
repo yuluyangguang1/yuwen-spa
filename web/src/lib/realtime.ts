@@ -16,6 +16,7 @@ interface Sub {
 let ws: WebSocket | null = null
 let connected = false
 let retryCount = 0
+const MAX_RETRY = 10
 let retryTimer: ReturnType<typeof setTimeout> | undefined
 let rejectedToken: string | null = null
 // 等待登录时注册的事件监听清理器（事件驱动，替代原 2s localStorage 轮询）
@@ -137,6 +138,10 @@ function connect() {
       return
     }
 
+    if (retryCount >= MAX_RETRY) {
+      console.warn('[realtime] 已达最大重试次数，停止重连')
+      return
+    }
     const delay = Math.min(3000 * 2 ** retryCount, 30000)
     retryTimer = setTimeout(connect, delay)
     retryCount++

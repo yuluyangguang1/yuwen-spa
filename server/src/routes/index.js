@@ -29,12 +29,47 @@ import { registerInventoryRoutes } from './inventory.js'
 import { registerScheduleRoutes } from './schedules.js'
 import { registerCommissionRuleRoutes } from './commission-rules.js'
 import { registerBackupRoutes } from './backup.js'
+import { checkRateLimit, clientKey } from '../auth/ratelimit.js'
+
+// 安全方法：读接口轮询密集，额度放宽；写接口收紧防刷单
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
+
+/**
+ * 全局限流（兜底；敏感端点另有更严限制）
+ *
+ * 必须在 registerAuthHook 之后注册 —— 依赖 req.user / req.guestTicketId 做分桶。
+ */
+function registerGlobalRateLimit(fastify) {
+  fastify.addHook('onRequest', async (req, reply) => {
+    if (!req.url.startsWith('/api/')) return
+    if (req.url.startsWith('/api/health') || req.url.startsWith('/api/realtime')) return
+
+    const isWrite = !SAFE_METHODS.has(req.method)
+    const rl = checkRateLimit(clientKey(req, isWrite ? 'global:write' : 'global:read'), {
+      maxAttempts: isWrite ? 120 : 1200,
+      windowMs: 60 * 1000,
+    })
+    if (!rl.ok) {
+      reply.header('Retry-After', String(rl.retryAfter))
+      return reply.code(429).send({
+        error: `请求过于频繁，请 ${rl.retryAfter} 秒后重试`,
+        code: 'RATE_LIMITED',
+      })
+    }
+  })
+}
 
 export async function registerRoutes(fastify) {
-  // 1. 先注册 auth hook（拦截未登录请求）
+  // 1. 先注册 auth hook（拦截未登录请求，并填充 req.user / req.guestTicketId）
   await registerAuthHook(fastify)
 
-  // 2. 注册路由
+  // 2. 全局限流 —— 必须在 auth hook 之后注册
+  //    限流按「身份」分桶（员工 user:<id> / 顾客 guest:<ticketId> / 匿名 ip:<addr>），
+  //    身份由 auth hook 解析。若在 auth 之前注册，req.user 恒为空，
+  //    店内所有设备会共用同一个 IP 桶 —— 一个人刷请求就会挤掉全店。
+  registerGlobalRateLimit(fastify)
+
+  // 3. 注册路由
   await registerAuthRoutes(fastify)
   await registerUserRoutes(fastify)
   await registerHealthRoutes(fastify)

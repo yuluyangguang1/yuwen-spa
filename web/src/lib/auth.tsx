@@ -29,7 +29,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // 启动时用 token 恢复登录状态
   useEffect(() => {
-    if (!token) {
+    // 公开页面（顾客扫码端）不需要恢复登录态：顾客没有账号，
+    // 且残留的失效 token 会触发 401 跳转，把顾客顶到登录页。
+    const onPublicPage = /^\/guest(\/|$)/.test(location.pathname)
+    if (!token || onPublicPage) {
       setLoading(false)
       return
     }

@@ -14,6 +14,7 @@ import { notifyTicketCreated, notifyTicketPaid, notifyBigTicket } from '../notif
 import { requireRole, STAFF_ROLES } from '../auth/roles.js'
 import { calcCouponDiscount } from './coupons.js'
 import { requireObject, optionalString, optionalInt } from '../lib/validate.js'
+import { assignWithRotation, releaseTechnician } from '../rotation/rotation.js'
 
 export async function registerTicketRoutes(fastify) {
   const db = fastify.db
@@ -152,10 +153,14 @@ export async function registerTicketRoutes(fastify) {
         const status = auto_start ? 'active' : 'pending'
 
         db.transaction(() => {
-          // 占用校验：同房间/同技师不允许并行开钟
+          // 占用校验：按容量检查，大厅/包间/VIP 可容纳多个顾客
           if (room_id && auto_start) {
-            const busy = db.prepare(`SELECT 1 FROM tickets WHERE room_id=? AND status IN ('pending','active') AND id!=?`).get(room_id, id)
-            if (busy) throw new ConflictError('房间已被占用')
+            const room = db.prepare(`SELECT capacity FROM rooms WHERE id=?`).get(room_id)
+            const cap = Math.max(1, room?.capacity || 1)
+            const current = db.prepare(
+              `SELECT COUNT(*) AS c FROM tickets WHERE room_id=? AND status IN ('pending','active') AND id!=?`
+            ).get(room_id, id).c
+            if (current >= cap) throw new ConflictError(`房间已满（${current}/${cap}）`)
           }
           if (technician_id && auto_start) {
             const busy = db.prepare(`SELECT 1 FROM tickets WHERE technician_id=? AND status IN ('pending','active') AND id!=?`).get(technician_id, id)
@@ -253,16 +258,30 @@ export async function registerTicketRoutes(fastify) {
           ).get(technician_id, ticket.id)
           if (busy) throw new ConflictError('技师已有进行中的钟单')
         }
+      } else {
+        // 未指定技师时，按轮转顺序自动分配下一个空闲技师
+        const nextTech = db.prepare(`
+          SELECT id FROM technicians
+          WHERE shop_id = ? AND rotation_active = 1 AND status = 'idle'
+          ORDER BY rotation_order ASC
+          LIMIT 1
+        `).get(shop_id)
+        if (nextTech) {
+          technician_id = nextTech.id
+        }
       }
       if (hasRoom) {
         room_id = body.room_id ? String(body.room_id) : null
         if (room_id) {
-          const room = db.prepare(`SELECT id FROM rooms WHERE id=? AND shop_id=?`).get(room_id, shop_id)
+          const room = db.prepare(`SELECT id, capacity FROM rooms WHERE id=? AND shop_id=?`).get(room_id, shop_id)
           if (!room) throw new NotFoundError('房间不存在')
-          const busy = db.prepare(
-            `SELECT 1 FROM tickets WHERE room_id=? AND status IN ('pending','active') AND id!=?`
-          ).get(room_id, ticket.id)
-          if (busy) throw new ConflictError('房间已被占用')
+          // 按容量检查：房间当前订单数 < capacity 才允许分配
+          // 大厅/包间/VIP 等房间可容纳多个顾客，capacity=1 的房间只能有一个
+          const cap = Math.max(1, room.capacity || 1)
+          const current = db.prepare(
+            `SELECT COUNT(*) AS c FROM tickets WHERE room_id=? AND status IN ('pending','active') AND id!=?`
+          ).get(room_id, ticket.id).c
+          if (current >= cap) throw new ConflictError(`房间已满（${current}/${cap}）`)
         }
       }
 
@@ -285,6 +304,21 @@ export async function registerTicketRoutes(fastify) {
                 .run(now, ticket.room_id)
             }
             db.prepare(`UPDATE rooms SET status='occupied', updated_at=? WHERE id=?`).run(now, room_id)
+          }
+          // 排钟轮转：仅 active 状态才消耗轮转机会（pending 不消耗）
+          if (technician_id) {
+            const tech = db.prepare('SELECT rotation_order FROM technicians WHERE id=?').get(technician_id)
+            if (tech) {
+              const maxOrder = db.prepare(
+                'SELECT COALESCE(MAX(rotation_order), 0) AS m FROM technicians WHERE shop_id = ? AND rotation_active = 1'
+              ).get(shop_id).m
+              db.prepare('UPDATE technicians SET rotation_order = ?, last_served_at = ?, updated_at = ? WHERE id = ?')
+                .run(maxOrder + 1, now, now, technician_id)
+              db.prepare(`
+                INSERT INTO rotation_log(id, shop_id, ticket_id, technician_id, rotation_order_before, rotation_order_after, action, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, 'assign:rotation', ?)
+              `).run(nanoid(12), shop_id, ticket.id, technician_id, tech.rotation_order, maxOrder + 1, now)
+            }
           }
         }
         db.prepare(`
@@ -360,10 +394,13 @@ export async function registerTicketRoutes(fastify) {
     // 开钟前校验技师/房可用（与创建 auto_start 一致）
     if (ticket.status === 'pending') {
       if (ticket.room_id) {
-        const busyRoom = db2.prepare(
-          `SELECT 1 FROM tickets WHERE room_id=? AND status='active' AND id!=?`
-        ).get(ticket.room_id, ticket.id)
-        if (busyRoom) throw new ConflictError('房间已被占用')
+        // 按容量检查：房间当前 active 订单数 < capacity 才允许开钟
+        const room = db2.prepare(`SELECT capacity FROM rooms WHERE id=?`).get(ticket.room_id)
+        const cap = Math.max(1, room?.capacity || 1)
+        const current = db2.prepare(
+          `SELECT COUNT(*) AS c FROM tickets WHERE room_id=? AND status='active' AND id!=?`
+        ).get(ticket.room_id, ticket.id).c
+        if (current >= cap) throw new ConflictError(`房间已满（${current}/${cap}）`)
       }
       if (ticket.technician_id) {
         const busyTech = db2.prepare(
@@ -500,7 +537,15 @@ export async function registerTicketRoutes(fastify) {
           }
 
           if (ticket.room_id) db.prepare(`UPDATE rooms SET status='idle', updated_at=? WHERE id=?`).run(now, ticket.room_id)
-          if (ticket.technician_id) db.prepare(`UPDATE technicians SET status='idle', updated_at=? WHERE id=?`).run(now, ticket.technician_id)
+          // 恢复技师状态前检查是否还有其他 active/pending 订单（多顾客房间场景）
+          if (ticket.technician_id) {
+            const otherActive = db.prepare(
+              `SELECT 1 FROM tickets WHERE technician_id=? AND status IN ('pending','active') AND id!=?`
+            ).get(ticket.technician_id, ticket.id)
+            if (!otherActive) {
+              db.prepare(`UPDATE technicians SET status='idle', updated_at=? WHERE id=?`).run(now, ticket.technician_id)
+            }
+          }
 
           db.prepare(`INSERT INTO audit_logs(id, shop_id, action, target_type, target_id, payload, created_at) VALUES(?, ?, 'ticket.pay', 'ticket', ?, ?, ?)`)
             .run(nanoid(10), ticket.shop_id, ticket.id,
@@ -774,7 +819,15 @@ function changeStatus(fastify, req, reply, target, opts = {}) {
           if (ticket.technician_id) db.prepare(`UPDATE technicians SET status='working', updated_at=? WHERE id=?`).run(now, ticket.technician_id)
         }
         if (opts.freeRoom && ticket.room_id) db.prepare(`UPDATE rooms SET status='idle', updated_at=? WHERE id=?`).run(now, ticket.room_id)
-        if (opts.freeTech && ticket.technician_id) db.prepare(`UPDATE technicians SET status='idle', updated_at=? WHERE id=?`).run(now, ticket.technician_id)
+        // 恢复技师状态前检查是否还有其他 active/pending 订单（多顾客房间场景）
+        if (opts.freeTech && ticket.technician_id) {
+          const otherActive = db.prepare(
+            `SELECT 1 FROM tickets WHERE technician_id=? AND status IN ('pending','active') AND id!=?`
+          ).get(ticket.technician_id, ticket.id)
+          if (!otherActive) {
+            db.prepare(`UPDATE technicians SET status='idle', updated_at=? WHERE id=?`).run(now, ticket.technician_id)
+          }
+        }
       })()
 
       const t = getTicketWithJoins(db, ticket.id)

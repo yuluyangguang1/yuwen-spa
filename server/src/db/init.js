@@ -661,6 +661,17 @@ const MIGRATIONS = [
       }
     }
   }},
+  { version: 13, up: (db) => {
+    // 门店自定义标识：logo 用于浏览器图标/品牌区，short_name 用于 PWA 短名
+    for (const col of [
+      `ALTER TABLE shops ADD COLUMN logo TEXT`,
+      `ALTER TABLE shops ADD COLUMN short_name TEXT`,
+    ]) {
+      try { db.exec(col) } catch (e) {
+        if (!String(e.message).includes('duplicate column')) throw e
+      }
+    }
+  }},
 ]
 
 function runMigrations(db) {
